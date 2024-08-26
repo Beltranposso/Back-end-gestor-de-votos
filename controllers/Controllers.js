@@ -1,6 +1,7 @@
 
 import Usermodel from '../models/UsersModel.js'
-
+/* import dotenv from 'dotenv'; */
+import jwt from 'jsonwebtoken';
 // Metodos para el CRUD
 
 
@@ -91,3 +92,50 @@ export const DeleteUser = async (req, res) => {
 }
 
 
+/* export const Login = async (req, res) => {
+    try {
+        const { Cedula, Contraseña } = req.body; // Captura los datos enviados en la solicitud
+        const user = await Usermodel.findOne({ where: { Cedula } });
+
+        if (!user) {
+            return res.status(401).json({ message: 'Cedula inválida' });
+        }
+
+        // Comparación directa sin usar bcrypt ni seguridad adicional
+        if (Contraseña !== user.Contraseña) {
+            return res.status(401).json({ message: 'Contraseña inválida' });
+        }
+
+        return res.json({ message: 'Inicio de sesión exitoso', user });
+
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+}; */
+/* dotenv.config(); */
+/* export const login = async (req, res) => {
+    
+    const secretKey = process.env.SECRET_KEY;
+    
+    try {
+        if (!secretKey) {         
+            throw new Error('SECRET_KEY is not defined in .env file');
+        }
+        const { Cedula, Contraseña } = req.body;
+        const user = await Usermodel.findOne({ where: { Cedula } });
+
+        if (!user || Contraseña !== user.Contraseña) {
+            return res.status(401).json({ message: 'Cedula o Contraseña incorrectos' });
+        }
+ 
+        // Generar el token
+        const token = jwt.sign({ Cedula: user.Cedula }, secretKey, { expiresIn: '1h' });
+
+        // Responder con el token
+        return res.json({ token });
+
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+}
+ */

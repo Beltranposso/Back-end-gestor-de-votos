@@ -6,7 +6,8 @@ import {DataTypes} from "sequelize";
     Nombre: {type: DataTypes.STRING},
     Apellido: {type: DataTypes.STRING},
     Correo:{type: DataTypes.STRING},
-    Cedula:{type: DataTypes.STRING}
+    Cedula:{type: DataTypes.STRING},
+    Contraseña:{type: DataTypes.STRING},
 })
 
 
