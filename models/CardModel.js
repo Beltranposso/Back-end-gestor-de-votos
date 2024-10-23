@@ -1,12 +1,16 @@
 import db from "../database/db.js";
-import { DataTypes} from "sequelize";
+import { DataTypes } from "sequelize";
 
+const Asamblea = db.define('asambleas', {
+    id: {
+        type: DataTypes.STRING,
+        autoIncrement: false,
+        primaryKey: true
+    },
+    Title: { type: DataTypes.STRING, allowNull: false }, // Si el título es obligatorio
+    Color: { type: DataTypes.STRING, allowNull: false }, // Si el color es obligatorio
+     // Asegúrate de que sea el tipo correcto
+});
 
-const Asamblea = db.define('asambleas',{
-    Title: {type: DataTypes.STRING},
-    Color:{type: DataTypes.STRING},
-    Userid:{type:DataTypes.STRING}
-
-}) 
-
-export default Asamblea
+// Exportar el modelo
+export default Asamblea;

@@ -41,3 +41,16 @@ export const createoption = async (req,res)=> {
     }
     }
        
+
+    export const  getOption =async  (req,res)=> {
+        try {
+         const option = await OptionModel.findAll({
+             where: { id_pregunta: req.params.id_pregunta }
+         })
+         res.json(option[0])
+        } catch (error) {
+         res.json({
+             "message": error.message
+         })
+        }
+     } 
