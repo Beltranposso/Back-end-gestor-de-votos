@@ -1,12 +1,12 @@
 
-import db from "../database/db.js";
-import {DataTypes} from "sequelize";
+const db = require ("../database/db.js") 
 
+const { DataTypes } = require("sequelize");
 
 const  Question = db.define('questions',{
     Pregunta:{type: DataTypes.STRING}
 
 })
 
-export default Question
+module.exports =  Question; 
  

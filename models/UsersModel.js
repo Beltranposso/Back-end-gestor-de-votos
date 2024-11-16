@@ -1,6 +1,6 @@
-import db from "../database/db.js";
+const db = require ("../database/db.js") 
 
-import {DataTypes} from "sequelize";
+const { DataTypes } = require("sequelize");
 
  const Tabla = db.define('app_usuarios',{
     Nombre: {type: DataTypes.STRING},
@@ -13,5 +13,4 @@ import {DataTypes} from "sequelize";
 })
 
 
-
-export default Tabla
+module.exports = Tabla

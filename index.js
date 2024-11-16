@@ -1,23 +1,23 @@
-import express from 'express';
-import http from 'http';
-import { Server as SocketServer } from 'socket.io';
-import cors from 'cors';
-import db from './database/db.js';
-import UserRoutes from './routes/routes.js';
-import CardRoutes from './routes/RoutesCard.js';
-import QuestionsRoutes from './routes/RoutesQuestions.js';
-import OptionRoutes from './routes/RoutesOption.js';
-import VotesRoutes from './routes/RoutesVotes.js';
-import dotenv from 'dotenv'; 
-import Usermodel from './models/UsersModel.js';
-import VotesModel from './models/VotosMode.js';
-import cardRouterid from './routes/CardRouterid.js'; 
-import CardModel from './models/CardModel.js';
-import jwt from 'jsonwebtoken';
+const express = require('express');
+const http = require('http');
+const { Server: SocketServer } = require('socket.io');
+const cors = require('cors');
+const db = require('./database/db.js');
+const UserRoutes = require('./routes/routes.js');
+const CardRoutes = require('./routes/RoutesCard.js');
+const QuestionsRoutes = require('./routes/RoutesQuestions.js');
+const OptionRoutes = require('./routes/RoutesOption.js');
+const VotesRoutes = require('./routes/RoutesVotes.js');
+const dotenv = require('dotenv');
+const Usermodel = require('./models/UsersModel.js');
+const VotesModel = require('./models/VotosMode.js');
+const cardRouterid = require('./routes/CardRouterid.js');
+const CardModel = require('./models/CardModel.js');
+const jwt = require('jsonwebtoken');
 
 // Configuración de variables de entorno
 dotenv.config();
-console.log('SECRET_KEY:', process.env.SECRET_KEY); 
+console.log('SECRET_KEY:', process.env.SECRET_KEY);
 
 const app = express();
 const server = http.createServer(app);
@@ -46,7 +46,7 @@ app.post('/login', async (req, res) => {
     const secretKey = process.env.SECRET_KEY;
 
     try {
-        if (!secretKey) {  
+        if (!secretKey) {
             throw new Error('SECRET_KEY is not defined in .env file');
         }
         const { Cedula, Contraseña } = req.body;
@@ -60,7 +60,7 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, secretKey, { expiresIn: '1h' });
 
         // Responder con el token
-        return res.json({ token }); 
+        return res.json({ token });
 
     } catch (error) {
         return res.status(500).json({ message: error.message });
@@ -102,15 +102,16 @@ app.get('/Link/:id', async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 });
+(async () => {
+    try {
+        await db.authenticate();
+        console.log('Conexión a la base de datos exitosa');
+    } catch (error) {
+        console.log('Error en la conexión a la base de datos');
+    }
+})(); 
 
 // Conexión a la base de datos
-try {
-    await db.authenticate();
-    console.log('Conexión a la base de datos exitosa');
-} catch (error) {
-    console.log('Error en la conexión a la base de datos');
-}
-
 // Ruta de bienvenida
 app.get('/', (req, res) => {
     res.send('Hola mundo');
@@ -136,11 +137,11 @@ io.on('connection', (socket) => {
         try {
             await CardModel.update({ Estado }, { where: { id } });
             res.status(200).json({ message: 'Estado actualizado correctamente' });
-            io.emit('iniciar', Estado); 
+            io.emit('iniciar', Estado);
         } catch (error) {
             console.error('Error al actualizar el estado:', error);
             res.status(500).json({ message: 'Error al actualizar el estado' });
-        } 
+        }
     });
 
     socket.on('disconnect', () => {
@@ -157,10 +158,10 @@ app.get('/api/votacion/estado/:id', async (req, res) => {
             res.send(card.Estado.toString());
         } else {
             res.send(null);
-        } 
+        }
     } catch (error) {
         res.status(500).send('Error al obtener el estado');
-    } 
+    }
 });
 
 // Configurar el puerto desde la variable de entorno o usar un valor por defecto
@@ -168,4 +169,3 @@ const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
     console.log(`Servidor andando en el http://localhost:${PORT}`);
 });
- 

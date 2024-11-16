@@ -1,13 +1,11 @@
-import express from 'express'
-import { getCard, getAllCards, createCard, DeleteCard,getCardsByCedula} from '../controllers/controllersCard.js'
+const express = require('express');
+const { getCard, getAllCards, createCard, DeleteCard, getCardsByCedula } = require('../controllers/controllersCard.js');
 
-const router_2 = express.Router()
+const router_2 = express.Router();
 
-router_2.get('/', getAllCards)
-router_2.get('/:cedula', getCardsByCedula)
-router_2.post('/', createCard)
-router_2.delete('/:id',DeleteCard)
+router_2.get('/', getAllCards);
+router_2.get('/:cedula', getCardsByCedula);
+router_2.post('/', createCard);
+router_2.delete('/:id', DeleteCard);
 
-
-
-export default router_2   
+module.exports = router_2;

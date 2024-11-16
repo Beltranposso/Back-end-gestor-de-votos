@@ -1,15 +1,15 @@
-import { AsambleaModel, QuestionsModel, OptionsModel } from '../models/asociations.js'; // Asegúrate de importar correctamente los modelos
-export const  getVotingByAsamblea= async (req, res)=> {
+const { AsambleaModel, QuestionsModel, OptionsModel } = require('../models/asociations.js'); // Asegúrate de importar correctamente los modelos
 
+exports.getVotingByAsamblea = async (req, res) => {
   try {
     // Buscar la asamblea específica con sus preguntas y opciones relacionadas
     const asam = await AsambleaModel.findOne({
-      where: { id: req.params.id  }, // Buscar por el id de la asamblea
+      where: { id: req.params.id }, // Buscar por el id de la asamblea
       include: [
         {
           model: QuestionsModel, // Incluir las preguntas relacionadas
-          as: 'preguntas', // Usar el alias 'preguntas'  que definiste en las asociaciones
-          include: [ 
+          as: 'preguntas', // Usar el alias 'preguntas' que definiste en las asociaciones
+          include: [
             {
               model: OptionsModel, // Incluir las opciones relacionadas a cada pregunta
               as: 'opciones' // Usar el alias 'opciones' que definiste en las asociaciones
@@ -31,4 +31,4 @@ export const  getVotingByAsamblea= async (req, res)=> {
     console.error('Error obteniendo la votación:', error);
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
-}
+};

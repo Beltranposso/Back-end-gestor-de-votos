@@ -1,8 +1,8 @@
-import AsambleaModel from './CardModel.js'; // Importar el modelo de asambleas
-import QuestionsModel from './QuestionsModel.js'; // Importar el modelo de preguntas
-import OptionsModel from './OptionsModel.js'; // Importar el modelo de opciones
-import Votos from './VotosMode.js'; // Importar el modelo de votos
-import Usuarios from './UsersModel.js'; // Importar el modelo de usuarios (si existe)
+const AsambleaModel = require('./CardModel.js'); // Importar el modelo de asambleas
+const QuestionsModel = require('./QuestionsModel.js'); // Importar el modelo de preguntas
+const OptionsModel = require('./OptionsModel.js'); // Importar el modelo de opciones
+const Votos = require('./VotosMode.js'); // Importar el modelo de votos
+const Usuarios = require('./UsersModel.js'); // Importar el modelo de usuarios (si existe)
 
 // Relación entre Asamblea y Preguntas
 AsambleaModel.hasMany(QuestionsModel, {
@@ -49,4 +49,4 @@ Votos.belongsTo(Usuarios, {
 });
 
 // Exportar los modelos con las asociaciones necesarias
-export { AsambleaModel, QuestionsModel, OptionsModel, Votos, Usuarios };
+module.exports = { AsambleaModel, QuestionsModel, OptionsModel, Votos, Usuarios };

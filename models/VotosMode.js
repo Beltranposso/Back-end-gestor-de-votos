@@ -1,5 +1,7 @@
-import db from "../database/db.js";
-import { DataTypes} from "sequelize";
+
+const db = require ("../database/db.js") 
+
+const { DataTypes } = require("sequelize");
 
 
 const Votos = db.define('votes',{
@@ -11,4 +13,4 @@ const Votos = db.define('votes',{
 
 }) 
 
-export default Votos 
+module.exports = Votos 

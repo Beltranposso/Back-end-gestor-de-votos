@@ -1,12 +1,8 @@
- import { getVotingByAsamblea } from "../controllers/VotosbyAsambleas.js";
-import express from "express";
+const express = require('express');
+const { getVotingByAsamblea } = require('../controllers/VotosbyAsambleas.js');
 
 const router_5 = express.Router();
 
 router_5.get('/:id', getVotingByAsamblea);
 
-export default router_5 
-
-
-
-
+module.exports = router_5;
