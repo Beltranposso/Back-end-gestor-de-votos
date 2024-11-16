@@ -20,11 +20,11 @@ dotenv.config();
 console.log('SECRET_KEY:', process.env.SECRET_KEY);
 const app  = express()
 const server = http.createServer(app)
-const domain = process.env.DOMAIN || 'http://localhost:5173'
+
 
 const io = new SocketServer(server,{
     cors: {
-        origin: [domain,"http://localhost:5174"],
+        origin: ["http://localhost:5173","http://localhost:5174"],
     }
 })
 
@@ -188,12 +188,12 @@ app.get('/api/votacion/estado/:id', async (req, res) => {
       } 
     } catch (error) {
       res.status(500).send('Error al obtener el estado');  // Error simple sin JSON
-    }  
+    } 
   });
   
-  const PORT = process.env.PORT || 8000;
-server.listen(PORT,()=>{
-  console.log(`Server andando en el http://localhost:${PORT}/`);
+    
+server.listen(8000,()=>{
+    console.log('server andando en el http://localhost:8000/')
 }) 
- 
-  
+
+   
