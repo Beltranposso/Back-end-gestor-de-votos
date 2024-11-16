@@ -6,10 +6,10 @@ import {DataTypes} from "sequelize";
     Nombre: {type: DataTypes.STRING},
     Apellido: {type: DataTypes.STRING},
     Correo:{type: DataTypes.STRING},
-    Cedula:{type: DataTypes.STRING},
+    Cedula:{type: DataTypes.INTEGER},
     Contraseña:{type: DataTypes.STRING},
-    id_cargo:{type: DataTypes.STRING},
-    poder:{type: DataTypes.STRING},
+    id_cargo:{type: DataTypes.INTEGER},
+    poder:{type: DataTypes.FLOAT},
 })
 
 

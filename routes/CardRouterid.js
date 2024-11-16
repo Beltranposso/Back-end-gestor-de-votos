@@ -3,9 +3,9 @@ import express from "express";
 
 const router_5 = express.Router();
 
-router_5.get('/', getVotingByAsamblea);
+router_5.get('/:id', getVotingByAsamblea);
 
-export default router_5
+export default router_5 
 
 
 

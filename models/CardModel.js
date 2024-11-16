@@ -8,9 +8,14 @@ const Asamblea = db.define('asambleas', {
         primaryKey: true
     },
     Title: { type: DataTypes.STRING, allowNull: false }, // Si el título es obligatorio
-    Color: { type: DataTypes.STRING, allowNull: false }, // Si el color es obligatorio
-     // Asegúrate de que sea el tipo correcto
+    Color: { type: DataTypes.STRING, allowNull: false },
+    link: { type: DataTypes.STRING },
+    UserId: { type: DataTypes.STRING },
+    Estado: { type: DataTypes.STRING },
+
+    
 });
 
 // Exportar el modelo
 export default Asamblea;
+ 

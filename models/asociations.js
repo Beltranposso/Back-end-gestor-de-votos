@@ -1,4 +1,4 @@
-import AsambleaModel from './CardModel.js';  // Importar el modelo de asambleas
+import AsambleaModel from './CardModel.js'; // Importar el modelo de asambleas
 import QuestionsModel from './QuestionsModel.js'; // Importar el modelo de preguntas
 import OptionsModel from './OptionsModel.js'; // Importar el modelo de opciones
 import Votos from './VotosMode.js'; // Importar el modelo de votos
@@ -6,7 +6,7 @@ import Usuarios from './UsersModel.js'; // Importar el modelo de usuarios (si ex
 
 // Relación entre Asamblea y Preguntas
 AsambleaModel.hasMany(QuestionsModel, {
-    foreignKey: 'id_card',
+    foreignKey: 'id_card',  // id de la asamblea en preguntas
     as: 'preguntas'
 });
 
@@ -17,7 +17,7 @@ QuestionsModel.belongsTo(AsambleaModel, {
 
 // Relación entre Pregunta y Opciones
 QuestionsModel.hasMany(OptionsModel, {
-    foreignKey: 'id_pregunta',
+    foreignKey: 'id_pregunta',  // id de la pregunta en opciones
     as: 'opciones'
 });
 
@@ -26,9 +26,9 @@ OptionsModel.belongsTo(QuestionsModel, {
     as: 'pregunta'
 });
 
-// Relación entre Opciones y Votos (una opción tiene muchos votos)
+// Relación entre Opciones y Votos (si es necesario)
 OptionsModel.hasMany(Votos, {
-    foreignKey: 'id_Option',
+    foreignKey: 'id_Option',  // id de la opción en votos
     as: 'votos'
 });
 
@@ -37,9 +37,9 @@ Votos.belongsTo(OptionsModel, {
     as: 'opcion'
 });
 
-// Relación entre Usuarios y Votos (un usuario puede emitir muchos votos)
+// Relación entre Usuarios y Votos (si es necesario)
 Usuarios.hasMany(Votos, {
-    foreignKey: 'id_voter',
+    foreignKey: 'id_voter',  // id del usuario en votos
     as: 'votos'
 });
 
@@ -48,15 +48,5 @@ Votos.belongsTo(Usuarios, {
     as: 'usuario'
 });
 
-// Relación entre Asamblea y Votos (una asamblea tiene muchos votos)
-AsambleaModel.hasMany(Votos, {
-    foreignKey: 'id_card',
-    as: 'votos'
-});
-
-Votos.belongsTo(AsambleaModel, {
-    foreignKey: 'id_card',
-    as: 'asamblea'
-});
-
-export  { AsambleaModel, QuestionsModel, OptionsModel, Votos, Usuarios }; 
+// Exportar los modelos con las asociaciones necesarias
+export { AsambleaModel, QuestionsModel, OptionsModel, Votos, Usuarios };

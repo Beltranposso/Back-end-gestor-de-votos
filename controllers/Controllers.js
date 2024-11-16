@@ -44,7 +44,7 @@ export const getUser = async (req, res) => {
 // este metodo crea un registro 
 export const createUser = async (req, res) => {
     try {
-        await Usermodel.create(req.body)
+        await Usermodel.bulkCreate(req.body)
         res.json({
             "message": "el registro fue exitoso "
         })
@@ -62,7 +62,7 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
     try {
         await Usermodel.update(req.body, {
-            where: { id: req.params.id }
+            where: { Cedula: req.params.Cedula }
         })
         res.json({
             "message": "se actualizo correctamente la informacion "
@@ -78,10 +78,12 @@ export const updateUser = async (req, res) => {
 
 //este metodo elimina a un usuario 
 
+
 export const DeleteUser = async (req, res) => {
     try {
         await Usermodel.destroy({
-            where: { id: req.params.id }
+            where: { Cedula: req.params.Cedula }
+       
         })
 
     } catch (error) {
@@ -90,6 +92,7 @@ export const DeleteUser = async (req, res) => {
         })
     }
 }
+
 
 
 /* export const Login = async (req, res) => {

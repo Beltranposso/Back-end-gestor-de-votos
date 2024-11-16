@@ -1,46 +1,34 @@
+import { AsambleaModel, QuestionsModel, OptionsModel } from '../models/asociations.js'; // Asegúrate de importar correctamente los modelos
+export const  getVotingByAsamblea= async (req, res)=> {
 
-
-
-
-
-import {  QuestionsModel, OptionsModel, Votos, Usuarios, AsambleaModel} from '../models/asociations.js' // Asumiendo que tienes estos modelos definidos
-
-
-export default async function getVotingByAsamblea(req, res) {
-  const id = req.params.id
-   console.log('ID de la asamblea:', id)
-    try {
-    // Buscar la asamblea específica
+  try {
+    // Buscar la asamblea específica con sus preguntas y opciones relacionadas
     const asam = await AsambleaModel.findOne({
-      where: { id: '804c65e4-9c96-4e8f-af24-61e45644ff5d' },
-      include: [{
-        model: QuestionsModel,
-        as: 'preguntas', // Alias para las preguntas de la asamblea
-        include: [{
-          model: OptionsModel,
-          as: 'opciones', // Alias para las opciones de la pregunta
-          include: [{
-            model: Votos,
-            as: 'votos', // Alias para los votos de la opción
-            include: [{
-              model: Usuarios,
-              as: 'usuario', // Alias para el usuario que votó
-              attributes: ['Cedula', 'nombre'] // Campos del usuario que quieres obtener
-            }]
-                    }] 
-                }]
-            }]
-        });
-
-        if (!asam) {
-      return { success: false, message: res.status(404).json({ message: 'Asamblea no encontrada' }) };
+      where: { id: req.params.id  }, // Buscar por el id de la asamblea
+      include: [
+        {
+          model: QuestionsModel, // Incluir las preguntas relacionadas
+          as: 'preguntas', // Usar el alias 'preguntas'  que definiste en las asociaciones
+          include: [ 
+            {
+              model: OptionsModel, // Incluir las opciones relacionadas a cada pregunta
+              as: 'opciones' // Usar el alias 'opciones' que definiste en las asociaciones
+            }
+          ]
         }
+      ]
+    });
+
+    // Si no se encuentra la asamblea, devolver un error
+    if (!asam) {
+      return res.status(404).json({ message: 'Asamblea no encontrada' });
+    }
 
     // Devolver los datos estructurados
-    return { success: true, response: res.json(asam) };
+    return res.json(asam);
 
-    } catch (error) {
+  } catch (error) {
     console.error('Error obteniendo la votación:', error);
-    return { success: false, message: error.message };
+    return res.status(500).json({ message: 'Error interno del servidor' });
   }
 }

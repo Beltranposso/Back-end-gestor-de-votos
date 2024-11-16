@@ -21,7 +21,7 @@ export const  getQuestions =async  (req,res)=> {
      })
      } catch (error) {
        res.json({
-         "message": error.message
+         "message": error.message+", error al crear la pregunta"
        })
  }
  }

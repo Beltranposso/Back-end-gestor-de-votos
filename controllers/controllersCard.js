@@ -29,7 +29,7 @@ export const  getCard = async(req,res)=>{
         console.log("hubo un error al traer las card")
         res.json({
             "message": error.message
-        })
+        }) 
     }
 }
 
@@ -75,4 +75,24 @@ export const getCardsByCedula = async (req, res) => {
     }
 }
   
+
+
+export const updateCard = async (req, res) => { 
+    try {               
+        // Actualiza solo el campo 'estado'
+        await Cardmodel.update(
+            { Estado: req.body.Estado }, // Solo actualiza el campo 'estado'
+            {
+                where: { id: req.params.id }
+            }
+        );
+        res.json({            
+            "message": "El estado se actualizó correctamente"
+        });
+    } catch (error) {
+        res.status(500).json({ // Es una buena práctica agregar un código de estado HTTP
+            "message": error.message
+        });
+    }
+};
 
