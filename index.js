@@ -2,22 +2,22 @@ import express from 'express';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import cors from 'cors';
-import db from '../database/db.js';
-import UserRoutes from '../routes/routes.js';
-import CardRoutes from '../routes/RoutesCard.js';
-import QuestionsRoutes from '../routes/RoutesQuestions.js';
-import OptionRoutes from '../routes/RoutesOption.js';
-import VotesRoutes from '../routes/RoutesVotes.js';
+import db from './database/db.js';
+import UserRoutes from './routes/routes.js';
+import CardRoutes from './routes/RoutesCard.js';
+import QuestionsRoutes from './routes/RoutesQuestions.js';
+import OptionRoutes from './routes/RoutesOption.js';
+import VotesRoutes from './routes/RoutesVotes.js';
 import dotenv from 'dotenv'; 
-import Usermodel from '../models/UsersModel.js';
-import VotesModel from '../models/VotosMode.js';
-import cardRouterid from '../routes/CardRouterid.js';
-import CardModel from '../models/CardModel.js';
+import Usermodel from './models/UsersModel.js';
+import VotesModel from './models/VotosMode.js';
+import cardRouterid from './routes/CardRouterid.js'; 
+import CardModel from './models/CardModel.js';
 import jwt from 'jsonwebtoken';
 
 // Configuración de variables de entorno
 dotenv.config();
-console.log('SECRET_KEY:', process.env.SECRET_KEY);
+console.log('SECRET_KEY:', process.env.SECRET_KEY); 
 
 const app = express();
 const server = http.createServer(app);
