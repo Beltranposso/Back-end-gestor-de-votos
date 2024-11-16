@@ -25,7 +25,7 @@ const server = http.createServer(app);
 // Configurar Socket.io
 const io = new SocketServer(server, {
     cors: {
-        origin: ["https://control360.co", "http://localhost:5174"],
+        origin: ["https://control360.co"],
     }
 });
 
