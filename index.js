@@ -57,7 +57,7 @@ app.post('/login', async (req, res) => {
         }
 
         // Generar el token
-        const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, secretKey, { expiresIn: '1h' });
+        const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, secretKey, { expiresIn: '1s' });
 
         // Responder con el token
         return res.json({ token });
