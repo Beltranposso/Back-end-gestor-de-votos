@@ -28,9 +28,12 @@ const io = new SocketServer(server, {
         origin: ["https://control360.co"],
     }
 });
+app.use(cors({
+    origin: "https://serverapivote.co.control360.co"
+  }));
+  
 
-// Middleware para manejo de solicitudes
-app.use(cors());
+// Middleware para manejo de solicitud
 app.use(express.json());
 
 // Rutas
