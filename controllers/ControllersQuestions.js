@@ -6,7 +6,20 @@ exports.getQuestions = async (req, res) => {
         const Question = await QuestionModel.findAll({
             where: { id_card: req.params.id_card }
         });
-        res.json(Question[0]);
+        res.json(Question);
+    } catch (error) {
+        res.json({
+            "message": error.message
+        });
+    }
+};
+
+exports.getQuestionID = async (req, res) => {
+    try {
+        const Question = await QuestionModel.findAll({
+            where: { id_card: req.params.id_card }
+        });
+        res.json(Question);
     } catch (error) {
         res.json({
             "message": error.message

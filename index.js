@@ -14,6 +14,9 @@ const VotesModel = require('./models/VotosMode.js');
 const cardRouterid = require('./routes/CardRouterid.js');
 const CardModel = require('./models/CardModel.js');
 const jwt = require('jsonwebtoken');
+const ModelUserDefinitive = require('./routes/UserDefinitive.js');
+const ModelUserD = require('./models/UsuariosModelD.js');
+const bcrypt = require('bcrypt');
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -28,12 +31,15 @@ const io = new SocketServer(server, {
         origin: ["https://control360.co"],
     }
 });
-app.use(cors({
-    origin: "https://serverapivote.co.control360.co"
-  }));
-  
 
-// Middleware para manejo de solicitud
+
+// Middleware para manejo de solicitudes
+app.use(cors({
+    /* origin: ['https://control360.co', 'https://controlvotantes360.co.control360.co'] */
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true // Si tu aplicación necesita cookies o autenticación basada en sesiones
+}));
 app.use(express.json());
 
 // Rutas
@@ -41,35 +47,36 @@ app.use('/Usuarios', UserRoutes);
 app.use('/card', CardRoutes);
 app.use('/questions', QuestionsRoutes);
 app.use('/options', OptionRoutes);
-app.use('/votes', VotesRoutes);
+app.use('/votes', VotesRoutes);  
 app.use('/idCard', cardRouterid);
+app.use('/UsersDefinitive', ModelUserDefinitive); 
 
 // Ruta de login
 app.post('/login', async (req, res) => {
-    const secretKey = process.env.SECRET_KEY;
-
     try {
-        if (!secretKey) {
-            throw new Error('SECRET_KEY is not defined in .env file');
-        }
         const { Cedula, Contraseña } = req.body;
-        const user = await Usermodel.findOne({ where: { Cedula } });
 
-        if (!user || Contraseña !== user.Contraseña) {
-            return res.status(401).json({ message: 'Cedula o Contraseña incorrectos' });
+        console.log('Datos recibidos:', { Cedula, Contraseña });
+
+        const user = await Usermodel.findOne({ where: { Cedula } });
+        if (!user) {
+            return res.status(401).json({ message: 'Credenciales incorrectas' });
+        }
+
+        // Aquí verifica que la contraseña sea correcta
+        if (Contraseña !== user.Contraseña) {
+            return res.status(401).json({ message: 'Credenciales incorrectas' });
         }
 
         // Generar el token
-        const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, secretKey, { expiresIn: '1s' });
+        const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, process.env.SECRET_KEY, { expiresIn: '1h' });
 
-        // Responder con el token
         return res.json({ token });
-
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        console.error('Error en el servidor:', error);
+        return res.status(500).json({ message: 'Error en el servidor. Por favor intenta de nuevo más tarde.' });
     }
 });
-
 // Ruta de validación
 app.post('/Validation', async (req, res) => {
     try {
@@ -166,6 +173,48 @@ app.get('/api/votacion/estado/:id', async (req, res) => {
         res.status(500).send('Error al obtener el estado');
     }
 });
+
+app.post('/CreateExcel/:id_card', async (req, res) => {
+    try {
+        // Obtén el id_card de los parámetros de la ruta
+        const { id_card } = req.params;
+
+        // Valida que el cuerpo de la solicitud tenga datos
+        if (!Array.isArray(req.body) || req.body.length === 0) {
+            return res.status(400).json({ message: 'El cuerpo de la solicitud debe ser un array no vacío' });
+        }
+
+        // Agrega el campo id_card a cada registro
+        const dataConIdCard = req.body.map((registro) => ({
+            ...registro,
+            id_card: id_card, // Asigna el valor recibido desde la ruta 
+        }));
+
+        // Inserta los datos en la base de datos usando Sequelize
+        await ModelUserD.bulkCreate(dataConIdCard);
+
+        res.status(200).json({ message: 'Datos insertados correctamente' });
+    } catch (error) {
+        console.error('Error al insertar datos:', error);
+
+        // Maneja errores específicos, como de validación o conexión
+        if (error.name === 'SequelizeValidationError') {
+            return res.status(400).json({ message: 'Error de validación', errors: error.errors });
+        }
+
+        res.status(500).json({ message: 'Error al insertar datos' });
+    }
+});
+
+
+app.get('/VotesOptions/:id', async (req, res) => {
+
+/* Logica para ayar los resultados  por el quorum */
+
+})
+
+
+
 
 // Configurar el puerto desde la variable de entorno o usar un valor por defecto
 const PORT = process.env.PORT || 8000;

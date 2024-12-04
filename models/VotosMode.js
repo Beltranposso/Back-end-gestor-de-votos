@@ -13,4 +13,5 @@ const Votos = db.define('votes',{
 
 }) 
 
+
 module.exports = Votos 

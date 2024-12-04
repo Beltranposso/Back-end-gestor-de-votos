@@ -6,3 +6,4 @@ const db = new Sequelize('app_users', 'root', '', {
 });
 
 module.exports = db;
+ 

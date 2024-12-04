@@ -18,14 +18,36 @@ exports.getAllCards = async (req, res) => {
 // Obtener una tarjeta por su ID
 exports.getCard = async (req, res) => {
     try {
-        const Card = await Cardmodel.findAll({
-            where: { id: req.params.id }
+        // Validar el parámetro id (debe ser una cadena no vacía)
+        const id = req.params.id;
+        if (!id || typeof id !== "string" || id.trim() === "") {
+            return res.status(400).json({
+                message: "El parámetro 'id' es inválido o no se proporcionó."
+            });
+        }
+
+        // Buscar la tarjeta por id
+        const card = await Cardmodel.findOne({
+            where: { id }
         });
-        res.json(Card[0]);
+
+        // Si no se encuentra la tarjeta, responder con un mensaje claro
+        if (!card) {
+            return res.status(404).json({
+                message: `No se encontró ninguna tarjeta con el ID: ${id}`
+            });
+        }
+
+        // Respuesta exitosa
+        res.status(200).json(card);
     } catch (error) {
-        console.log("Hubo un error al traer la tarjeta");
-        res.json({
-            "message": error.message
+        // Log detallado del error para depuración
+        console.error("Error al traer la tarjeta por su ID:", error.message);
+
+        // Respuesta en caso de error del servidor
+        res.status(500).json({
+            message: "Hubo un error al traer la tarjeta por su ID.",
+            error: error.message
         });
     }
 };
@@ -33,17 +55,38 @@ exports.getCard = async (req, res) => {
 // Crear una nueva tarjeta
 exports.createCard = async (req, res) => {
     try {
-        await Cardmodel.create(req.body);
-        res.json({
-            "message": "El registro de la votación fue exitoso"
+        // Validar los datos del cuerpo de la solicitud
+        const { Title,Descripcion,UserId } = req.body;
+        
+        if (!Title || !Descripcion || !UserId) {
+            return res.status(400).json({
+                message: "Todos los campos osn obligatorios deben ser completados.",
+            });
+        }
+
+        // Crear el registro en la base de datos
+        const newCard = await Cardmodel.create(req.body);
+ 
+        res.status(201).json({ 
+            message: "El registro de la votación fue exitoso",
+            data: newCard, // Devolver el nuevo registro creado
         });
     } catch (error) {
-        res.json({
-            "message": error.message
+        // Detectar errores específicos (ejemplo: validación del modelo)
+        if (error.name === "ValidationError") {
+            return res.status(400).json({
+                message: "Error de validación de datos.",
+                details: error.errors, // Más información sobre el error
+            });
+        }
+
+        // Error interno del servidor
+        res.status(500).json({
+            message: "Hubo un error al registrar la asamblea.",
+            error:"diablo loco pno llego  ana", // Información para depuración
         });
     }
 };
-
 // Eliminar una tarjeta por su ID
 exports.DeleteCard = async (req, res) => {
     try {

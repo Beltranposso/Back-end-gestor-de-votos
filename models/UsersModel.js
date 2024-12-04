@@ -8,9 +8,10 @@ const { DataTypes } = require("sequelize");
     Correo:{type: DataTypes.STRING},
     Cedula:{type: DataTypes.INTEGER},
     Contraseña:{type: DataTypes.STRING},
-    id_cargo:{type: DataTypes.INTEGER},
-    poder:{type: DataTypes.FLOAT},
+    cargo:{type: DataTypes.INTEGER},
+    id_card:{type: DataTypes.STRING},
+   
 })
 
 
-module.exports = Tabla
+module.exports = Tabla 

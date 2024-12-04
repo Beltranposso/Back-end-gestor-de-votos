@@ -1,5 +1,6 @@
 const VotosMode = require("../models/VotosMode.js");
-
+const UsuariosMode = require("../models/UsuariosModelD.js");
+const { Votos, UsuariosDefinitive } = require("../models/asociations.js");
 // Trae todos los votos
 exports.getAllVotos = async (req, res) => {
     try {
@@ -29,6 +30,30 @@ exports.RegisterVote = async (req, res) => {
     }
 };
 
+ // Asegúrate de importar el modelo de Usuarios
+
+ exports.getvoto = async (req, res) => {
+    try {
+        const votos = await Votos.findAll({
+            where: { id_card: req.params.id_card },
+            include: [
+                {
+                    model: UsuariosDefinitive,
+                    as: 'usuario', // Usar el alias definido en la relación
+                    attributes: ['Nombre'], // Seleccionar los campos que necesitas
+                }
+            ]
+        });
+        res.json(votos);
+    } catch (error) {
+        console.log("Hubo un error al traer los votos");
+        res.json({
+            "message": error.message
+        });
+    }
+};
+
+
 // Obtiene los votos por id de opción
 exports.getVotosByid = async (req, res) => {
     try {
@@ -42,3 +67,4 @@ exports.getVotosByid = async (req, res) => {
         });
     }
 };
+
