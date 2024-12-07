@@ -52,6 +52,51 @@ exports.getCard = async (req, res) => {
     }
 };
 
+
+exports.updateEstado = async (req, res) => {
+    try {
+        const { id } = req.params; // Obtiene el ID del registro de los parámetros de la solicitud
+
+        // Obtiene el registro para verificar el estado actual
+        const card = await Cardmodel.findOne({ where: { id } });
+
+        if (!card) {
+            return res.status(404).json({ message: "No se encontró el registro" });
+        }
+
+        let nuevoEstado;
+
+        // Verifica el estado actual y decide el nuevo estado
+        switch (card.Estado) {
+            case 'Activa':
+                nuevoEstado = 'Finalizada';
+                break;
+            case 'Programada':
+                nuevoEstado = 'Activa';
+                break;
+            default:
+                return res.status(400).json({ message: "El estado actual no permite cambios" });
+        }
+
+        // Actualiza el estado en la base de datos
+        const result = await Cardmodel.update(
+            { Estado: nuevoEstado },
+            { where: { id } }
+        );
+
+        if (result[0] === 0) {
+            return res.status(500).json({ message: "No se pudo actualizar el registro" });
+        }
+
+
+        res.status(200).json({ message: `Estado actualizado a '${nuevoEstado}'` });
+    } catch (error) {
+        console.log("Hubo un error al actualizar el estado");
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
 // Crear una nueva tarjeta
 exports.createCard = async (req, res) => {
     try {
@@ -95,26 +140,43 @@ exports.DeleteCard = async (req, res) => {
         });
     } catch (error) {
         res.json({
-            "message": error.message
+            "message": error.message 
         });
-    }
+    } 
 };
 
 // Obtener tarjetas por cédula
 exports.getCardsByCedula = async (req, res) => {
     try {
+        // Obtener el token desde las cookies
+        const token = req.cookies.auth_token;
+
+        if (!token) {
+            return res.status(401).json({ message: 'Token missing or expired' });
+        }
+
+        // Decodificar el token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY); // Asegúrate de usar tu clave secreta
+        const cedula = decoded.Cedula; // Ajusta el campo según el contenido de tu token
+
+        if (!cedula) {
+            return res.status(403).json({ message: 'Unauthorized: Cedula not found in token' });
+        }
+
+        // Consultar las cards en la base de datos usando la cédula
         const cards = await Cardmodel.findAll({
-            where: { cedula: req.params.cedula }
+            where: { cedula }
         });
+
         res.json(cards);
     } catch (error) {
-        console.log("Hubo un error al traer las cards por cédula");
-        res.json({
-            "message": error.message
+        console.error("Hubo un error al traer las cards por cédula:", error);
+        res.status(500).json({
+            message: 'Internal server error',
+            error: error.message
         });
     }
 };
-
 // Actualizar el estado de una tarjeta
 exports.updateCard = async (req, res) => { 
     try {               

@@ -19,7 +19,7 @@ const Asamblea = db.define('asambleas', {
     Condominio: { type: DataTypes.STRING},
     createdAt: { type: DataTypes.DATE },
    
-});
+}); 
 
 // Exportar el modelo
 module.exports = Asamblea;

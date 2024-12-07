@@ -13,9 +13,11 @@ const Usermodel = require('./models/UsersModel.js');
 const VotesModel = require('./models/VotosMode.js');
 const cardRouterid = require('./routes/CardRouterid.js');
 const CardModel = require('./models/CardModel.js');
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); 
 const ModelUserDefinitive = require('./routes/UserDefinitive.js');
 const ModelUserD = require('./models/UsuariosModelD.js');
+const cookie = require('cookie');
+const cookieParser = require('cookie-parser');
 const bcrypt = require('bcrypt');
 
 // Configuración de variables de entorno
@@ -28,15 +30,15 @@ const server = http.createServer(app);
 // Configurar Socket.io
 const io = new SocketServer(server, {
     cors: {
-        origin: ["https://control360.co"],
+        origin: ["http//:localhost:5173"],
     }
 });
 
-
+app.use(cookieParser());
 // Middleware para manejo de solicitudes
 app.use(cors({
     /* origin: ['https://control360.co', 'https://controlvotantes360.co.control360.co'] */
-    origin: '*',
+    origin: 'http://localhost:5173',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true // Si tu aplicación necesita cookies o autenticación basada en sesiones
 }));
@@ -63,15 +65,45 @@ app.post('/login', async (req, res) => {
             return res.status(401).json({ message: 'Credenciales incorrectas' });
         }
 
-        // Aquí verifica que la contraseña sea correcta
         if (Contraseña !== user.Contraseña) {
             return res.status(401).json({ message: 'Credenciales incorrectas' });
         }
 
-        // Generar el token
-        const token = jwt.sign({ Cedula: user.Cedula, Nombre: user.Nombre }, process.env.SECRET_KEY, { expiresIn: '1h' });
+        const cargos = {
+            1: 'Administrador',
+            2: 'Operador de registro',
+            3: 'Coordinador'
+        };
 
-        return res.json({ token });
+        const userCargo = cargos[user.cargo];
+        if (!userCargo) {
+            return res.status(403).json({ message: 'Cargo no autorizado' });
+        }
+
+        // Crear token
+        const token = jwt.sign(
+            { Cedula: user.Cedula, Nombre: user.Nombre, Cargo: userCargo },
+            process.env.SECRET_KEY,
+            { expiresIn: '2h' }
+        );
+
+        // Configurar la cookie del token
+        res.setHeader('Set-Cookie', cookie.serialize('auth_token', token, {
+            httpOnly: true,
+            secure: false, // true en producción
+            sameSite: 'lax', // 'strict' o 'lax' según sea necesario
+            path: '/',
+            maxAge: 3600, // 1 hora
+          }));
+        // Respuesta con información adicional
+        return res.status(200).json({
+            message: 'Inicio de sesión exitoso',
+            usuario: {
+                Cedula: user.Cedula,
+                Nombre: user.Nombre,
+                Cargo: userCargo
+            }
+        });
     } catch (error) {
         console.error('Error en el servidor:', error);
         return res.status(500).json({ message: 'Error en el servidor. Por favor intenta de nuevo más tarde.' });
@@ -213,6 +245,50 @@ app.get('/VotesOptions/:id', async (req, res) => {
 
 })
 
+
+app.get('/DataAutenticathed', (req, res) => {
+    console.log(req.cookies); // Verifica si la cookie está presente
+    const token = req.cookies.auth_token; // Obtener el token de la cookie
+  
+    if (!token) {
+      return res.status(401).json({ message: 'Token missing or expired' });
+    }
+  
+    // Verificar y decodificar el token
+    jwt.verify(token,  process.env.SECRET_KEY, (err, decoded) => {
+      if(err) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+  
+      // Si el token es válido, extraemos la cédula y el cargo
+      const { Cedula, Cargo } = decoded;
+      // Devolver la cédula y cargo al cliente
+      res.json({ Cedula, Cargo });
+    });
+  });
+
+
+
+  app.get('/get-user-info', (req, res) => {
+    const token = req.cookies.auth_token; // Obtener el token de la cookie HttpOnly
+  
+    if (!token) {
+      return res.status(401).json({ message: 'Unauthorized' }); // Si no hay token, responder con 401
+    }
+  
+    jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+      if (err) {
+        return res.status(403).json({ message: 'Invalid token' }); // Si el token es inválido, responder con 403
+      }
+  
+      // Extraer el rol (cargo) del token y devolverlo
+      const { Cargo, Cedula } = decoded;
+      console.log("Cargo a devolver :", Cargo);
+      res.json({ Cargo , Cedula });
+    });
+  });
+  
+  
 
 
 
