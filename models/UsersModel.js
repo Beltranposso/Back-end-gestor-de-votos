@@ -10,6 +10,7 @@ const { DataTypes } = require("sequelize");
     Contraseña:{type: DataTypes.STRING},
     cargo:{type: DataTypes.INTEGER},
     id_card:{type: DataTypes.STRING},
+    Asistencia:{type: DataTypes.ENUM('Presente','Ausente')},
    
 })
 

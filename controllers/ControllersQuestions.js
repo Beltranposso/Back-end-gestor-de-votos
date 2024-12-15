@@ -14,6 +14,48 @@ exports.getQuestions = async (req, res) => {
     }
 };
 
+
+
+exports.hasQuestions = async (req, res) => {
+    try {
+        // Validar el parámetro id (debe ser una cadena no vacía)
+        const id = req.params.id;
+  
+
+        // Buscar si existen preguntas asociadas a la tarjeta
+        const hasQuestions = await QuestionModel.findOne({
+            where: { id_card: id } // cardId debe ser el campo que relaciona preguntas con la tarjeta
+        });
+
+        // Responder si hay o no preguntas registradas
+        if (hasQuestions) {
+            return res.status(200).json({
+                message: "La tarjeta tiene preguntas registradas.",
+                hasQuestions: true
+            });
+        } else {
+            return res.status(200).json({
+                message: "La tarjeta no tiene preguntas registradas.",
+                hasQuestions: false
+            });
+        }
+    } catch (error) {
+        // Log detallado del error para depuración
+        console.error("Error al verificar si la tarjeta tiene preguntas registradas:", error.message);
+
+        // Respuesta en caso de error del servidor
+        res.status(500).json({
+            message: "Hubo un error al verificar las preguntas asociadas a la tarjeta.",
+            error: error.message
+        });
+    }
+};
+
+
+
+
+
+
 exports.getQuestionID = async (req, res) => {
     try {
         const Question = await QuestionModel.findAll({

@@ -17,6 +17,9 @@ const jwt = require('jsonwebtoken');
 const ModelUserDefinitive = require('./routes/UserDefinitive.js');
 const ModelUserD = require('./models/UsuariosModelD.js');
 const cookie = require('cookie');
+const RoutesPropuestas = require( './routes/routesPropuesta.js');
+const ModelUser = require('./models/UsuariosModelD.js');
+const userModel = require('./models/UsersModel.js');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcrypt');
 
@@ -30,20 +33,20 @@ const server = http.createServer(app);
 // Configurar Socket.io
 const io = new SocketServer(server, {
     cors: {
-        origin: ["http//:localhost:5173"],
+        origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"], // Corregido "http//:" a "http://"
     }
 });
 
-app.use(cookieParser());
+app.use(cookieParser()); 
 // Middleware para manejo de solicitudes
 app.use(cors({
     /* origin: ['https://control360.co', 'https://controlvotantes360.co.control360.co'] */
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174','http://localhost:5175'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true // Si tu aplicación necesita cookies o autenticación basada en sesiones
 }));
-app.use(express.json());
-
+app.use(express.json()); 
+   
 // Rutas
 app.use('/Usuarios', UserRoutes);
 app.use('/card', CardRoutes);
@@ -52,6 +55,7 @@ app.use('/options', OptionRoutes);
 app.use('/votes', VotesRoutes);  
 app.use('/idCard', cardRouterid);
 app.use('/UsersDefinitive', ModelUserDefinitive); 
+app.use('/Propuestas', RoutesPropuestas);
 
 // Ruta de login
 app.post('/login', async (req, res) => {
@@ -84,7 +88,7 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign(
             { Cedula: user.Cedula, Nombre: user.Nombre, Cargo: userCargo },
             process.env.SECRET_KEY,
-            { expiresIn: '2h' }
+            { expiresIn: '6h' } 
         );
 
         // Configurar la cookie del token
@@ -170,12 +174,21 @@ io.on('connection', (socket) => {
     });
 
     socket.on('señal', (señal) => {
-        console.log('Señal recibida:', señal);
-        socket.broadcast.emit('M', señal);
+        socket.broadcast.emit('M',"user:"+ señal);
     });
+        socket.on('stado', (estado) => {
+        console.log('Recibido iniciar:', estado);
+        socket.broadcast.emit('ISO', "señal:",estado); 
 
+    })
+
+    socket.on('Asistencia', (m) => {
+      
+        socket.broadcast.emit('ASIST', 'cedula votante:'+m);
+    })
+  
     app.post('/api/votacion/estado', async (req, res) => {
-        const { Estado, id } = req.body;
+        const { Estado, id } = req.body; 
         try {
             await CardModel.update({ Estado }, { where: { id } });
             res.status(200).json({ message: 'Estado actualizado correctamente' });
@@ -189,7 +202,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log(`Cliente desconectado: ${socket.id}`);
     });
-});
+}); 
 
 // Ruta para obtener estado de votación por ID
 app.get('/api/votacion/estado/:id', async (req, res) => {
@@ -287,10 +300,194 @@ app.get('/DataAutenticathed', (req, res) => {
       res.json({ Cargo , Cedula });
     });
   });
-  
-  
 
 
+
+  app.get('/get-info-by-token', async (req, res) => {
+    try {
+        const token = req.cookies.auth_token; // Obtener el token de la cookie HttpOnly
+  
+        if (!token) {
+            return res.status(401).json({ message: 'Unauthorized' }); // Si no hay token, responder con 401
+        }
+  
+        // Verificar y decodificar el token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY); // Cambia SECRET_KEY por tu clave secreta
+  
+        // Extraer los datos del token
+        const { Cargo } = decoded;
+        const CedulaInt = parseInt(decoded.Cedula);
+
+        // Buscar al usuario en la base de datos por la cédula
+        const usuario = await userModel.findOne({
+            where: { Cedula: CedulaInt },
+        });
+
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        // Responder con el cargo y el nombre del usuario
+        res.json({
+            Cargo,
+            CedulaInt,
+            Nombre: usuario.Nombre, // Asegúrate de que 'Nombre' sea el campo correcto en tu modelo
+        }); 
+    } catch (err) {
+        console.error('Error al obtener información del usuario:', err);
+
+        // Manejo de errores específicos
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(403).json({ message: 'Invalid token' });
+        }
+
+        res.status(500).json({
+            message: 'Error interno del servidor',
+            error: err.message
+        });
+    }
+});
+  
+  app.get('/check-session', (req, res) => {
+    const sessionCookie = req.cookies['session_token'];
+    if (sessionCookie) {
+      // Aquí puedes verificar el token en tu base de datos o sistema de autenticación
+      const isValid = verifyToken(sessionCookie); // Supón que implementas esta función
+      if (isValid) {
+        return res.json({ isAuthenticated: true });
+      }
+    }
+    res.json({ isAuthenticated: false });
+  });
+
+
+  app.get('/get-user-asistencia', async (req, res) => {
+    try {
+        const token = req.cookies.auth_token; // Obtener el token de las cookies
+        if (!token) {
+            return res.status(401).json({ message: 'Unauthorized' }); // Si no hay token, responder con 401
+        }
+
+        // Verificar y decodificar el token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+        const Cedula = parseInt(decoded.Cedula);
+
+        // Buscar el usuario en la base de datos
+        const user = await Usermodel.findOne({
+            where: { Cedula },
+            attributes: ['Asistencia'], // Solo obtener la columna 'asistencia'
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        // Responder con el estado de asistencia del usuario
+        res.status(200).json({ asistencia: user.asistencia });
+    } catch (error) {
+        console.error('Error al obtener asistencia:', error);
+        res.status(500).json({ message: 'Error en el servidor. Por favor intenta de nuevo más tarde.' });
+    }
+});
+
+
+
+
+
+
+  
+  
+  app.post('/Check-user-token', async (req, res) => {
+    try {
+        // Obtener el token de las cookies
+        const token = req.cookies.Token;
+        console.log('Token recibido:', token);  // Log para verificar que el token está siendo enviado
+
+        // Verificar si el token existe
+        if (!token) {
+            return res.status(400).json({
+                message: "No se encontró el token en las cookies.",
+                success: false
+            });
+        }
+
+        // Decodificar el token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+
+        // Obtener la cédula desde el token decodificado
+        const { Cedula } = decoded;
+        console.log('Cédula decodificada:', Cedula); // Log para verificar la cédula
+
+        // Verificar si la cédula está presente
+        if (!Cedula) {
+            return res.status(400).json({
+                message: "Cédula no encontrada en el token.",
+                success: false
+            });
+        }
+
+        // Obtener el id_card desde el body de la solicitud
+        const { id_card } = req.body;  // Asegúrate de que el cliente envíe este dato en el cuerpo de la solicitud
+        console.log('id_card recibido del body:', id_card); // Log para verificar el id_card recibido
+
+        // Verificar si el id_card está presente
+        if (!id_card) {
+            return res.status(400).json({
+                message: "ID de la tarjeta no proporcionado.",
+                success: false
+            });
+        }
+
+        // Convertir la cédula a tipo entero si no lo es
+        const cedulaInt = parseInt(Cedula, 10);  // Asegúrate de usar base 10 al convertir a entero
+        console.log('Cédula convertida:', cedulaInt);
+
+        // Verificar si la conversión fue exitosa
+        if (isNaN(cedulaInt)) {
+            return res.status(400).json({
+                message: "La cédula no es válida.",
+                success: false
+            });
+        }
+
+        // Verificar si el usuario está registrado bajo el id_card
+        const user = await ModelUser.findOne({
+            where: { Cedula: cedulaInt, id_card }
+        });
+
+        if (!user) {
+            return res.json({
+                message: "No estás registrado en esta Asamblea.",
+                success: false
+            });
+        }
+
+        // Verificar si el usuario ya votó en la tabla VotesModel
+        const voteRecord = await VotesModel.findOne({
+            where: { id_voter: cedulaInt }
+        });
+
+        if (voteRecord) {
+            return res.json({
+                message: "El usuario ya ha votado.",
+                success: false
+            });
+        }
+
+        // Si el usuario está registrado y no ha votado
+        return res.json({
+            message: "Ya te verificaste en esta Asmablea.",
+            success: true
+        });
+
+    } catch (error) {
+        console.error("Error en el servidor:", error);  // Log para detalles del error
+        res.status(500).json({
+            message: "Error interno del servidor.",
+            error: error.message
+        });
+    }
+});
 
 // Configurar el puerto desde la variable de entorno o usar un valor por defecto
 const PORT = process.env.PORT || 8000;

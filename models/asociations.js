@@ -2,12 +2,22 @@ const AsambleaModel = require('./CardModel.js'); // Importar el modelo de asambl
 const QuestionsModel = require('./QuestionsModel.js'); // Importar el modelo de preguntas
 const OptionsModel = require('./OptionsModel.js'); // Importar el modelo de opciones
 const Votos = require('./VotosMode.js'); // Importar el modelo de votos
-const UsuariosDefinitive = require('./UsuariosModelD.js'); // Importar el modelo de usuarios definitivos
+const UsuariosDefinitive = require('./UsuariosModelD.js');
+const Usuarios = require('./UsersModel.js'); // Importar el modelo de usuarios definitivos
 
 // Relación entre Asamblea y Preguntas
 AsambleaModel.hasMany(QuestionsModel, {
     foreignKey: 'id_card',  // id de la asamblea en preguntas
     as: 'preguntas'
+});
+AsambleaModel.hasMany(Usuarios, {
+    foreignKey: 'id_card', // Esto debería coincidir con la base de datos
+    as: 'Usuarios',       // Alias para acceder a los usuarios desde una asamblea
+});
+
+Usuarios.belongsTo(AsambleaModel, {
+    foreignKey: 'id_card',
+    as: 'asamblea',
 });
 
 QuestionsModel.belongsTo(AsambleaModel, {
@@ -51,4 +61,4 @@ Votos.belongsTo(UsuariosDefinitive, {
 });
 
 // Exportar los modelos con las asociaciones necesarias
-module.exports = { AsambleaModel, QuestionsModel, OptionsModel, Votos, UsuariosDefinitive };
+module.exports = { AsambleaModel, QuestionsModel, OptionsModel, Votos, UsuariosDefinitive, Usuarios };

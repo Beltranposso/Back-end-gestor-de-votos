@@ -158,9 +158,10 @@ exports.getCardsByCedula = async (req, res) => {
         // Decodificar el token
         const decoded = jwt.verify(token, process.env.SECRET_KEY); // Asegúrate de usar tu clave secreta
         const cedula = decoded.Cedula; // Ajusta el campo según el contenido de tu token
+        const Cargo = decoded.Cargo;   // Ajusta el campo si el token usa otro nombre para este dato
 
-        if (!cedula) {
-            return res.status(403).json({ message: 'Unauthorized: Cedula not found in token' });
+        if (!cedula || !Cargo) {
+            return res.status(403).json({ message: 'Unauthorized: Cedula or Cargo not found in token' });
         }
 
         // Consultar las cards en la base de datos usando la cédula
@@ -168,7 +169,10 @@ exports.getCardsByCedula = async (req, res) => {
             where: { cedula }
         });
 
-        res.json(cards);
+        // Responder con las cards y el cargo del usuario
+        res.json({
+            cards,
+            Cargo});
     } catch (error) {
         console.error("Hubo un error al traer las cards por cédula:", error);
         res.status(500).json({
@@ -177,6 +181,7 @@ exports.getCardsByCedula = async (req, res) => {
         });
     }
 };
+
 // Actualizar el estado de una tarjeta
 exports.updateCard = async (req, res) => { 
     try {               
@@ -196,3 +201,27 @@ exports.updateCard = async (req, res) => {
         });
     }
 };
+
+
+exports.getEstado = async (req, res) => {
+    try {
+        const { id } = req.params; // Obtiene el ID del registro de los parámetros de la solicitud
+
+        // Obtiene el registro correspondiente
+        const card = await Cardmodel.findOne({ where: { id } });
+
+        if (!card) {
+            return res.status(404).json({ message: "No se encontró el registro" });
+        }
+
+        // Devuelve el campo Estado
+        res.status(200).json({ Estado: card.Estado });
+    } catch (error) {
+        console.log("Hubo un error al obtener el estado");
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+
