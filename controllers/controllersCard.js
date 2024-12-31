@@ -158,7 +158,8 @@ exports.getCardsByCedula = async (req, res) => {
         // Decodificar el token
         const decoded = jwt.verify(token, process.env.SECRET_KEY); // Asegúrate de usar tu clave secreta
         const cedula = decoded.Cedula; // Ajusta el campo según el contenido de tu token
-        const Cargo = decoded.Cargo;   // Ajusta el campo si el token usa otro nombre para este dato
+        const Cargo = decoded.Cargo;
+        const Id = decoded.id;   // Ajusta el campo si el token usa otro nombre para este dato
 
         if (!cedula || !Cargo) {
             return res.status(403).json({ message: 'Unauthorized: Cedula or Cargo not found in token' });
@@ -166,7 +167,7 @@ exports.getCardsByCedula = async (req, res) => {
 
         // Consultar las cards en la base de datos usando la cédula
         const cards = await Cardmodel.findAll({
-            where: { cedula }
+            where: { Id }
         });
 
         // Responder con las cards y el cargo del usuario

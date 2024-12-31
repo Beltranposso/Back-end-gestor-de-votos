@@ -95,3 +95,59 @@ exports.getAllQuestions = async (req, res) => {
         });
     }
 };
+
+
+
+
+exports.getCronometro = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Consulta la base de datos para obtener la pregunta
+        const question = await QuestionModel.findOne({
+            where: { id },
+            attributes: ['TiempoInicio', 'Duracion'], // Solo obtenemos las columnas necesarias
+        });
+
+        if (!question) {
+            return res.status(404).json({ error: 'Pregunta no encontrada' });
+        }
+
+        const { TiempoInicio, Duracion } = question;
+        if (!TiempoInicio || !Duracion) {
+            return res.status(400).json({ error: 'Datos incompletos en la pregunta' });
+        }
+
+        // Convertir el formato 'DD/MM/YYYY, HH:mm:ss' a 'YYYY-MM-DDTHH:mm:ss'
+        const [fecha, hora] = TiempoInicio.split(', ');
+        const [dia, mes, anio] = fecha.split('/');
+        const formattedFecha = `${anio}-${mes}-${dia}T${hora}`;
+
+        // Crear la fecha usando el formato adecuado
+        const inicio = new Date(formattedFecha);
+  
+        if (isNaN(inicio.getTime())) {
+            return res.status(400).json({ error: 'El formato de TiempoInicio no es válido' });
+        }
+
+        // Calcular tiempo transcurrido
+        const ahora = Date.now();
+        const tiempoTranscurrido = Math.floor((ahora - inicio.getTime()) / 1000); // En segundos
+        const duracionEnSegundos = parseInt(Duracion, 10);
+
+        // Validación de la duración
+        if (isNaN(duracionEnSegundos)) {
+            return res.status(400).json({ error: 'La duración debe ser un número válido' });
+        }
+
+        const tiempoRestante = duracionEnSegundos - tiempoTranscurrido;
+
+        res.json({
+            tiempoRestante: tiempoRestante > 0 ? tiempoRestante : 0, // Evitar números negativos
+            terminado: tiempoRestante <= 0,
+        });
+    } catch (error) {
+        console.error('Error al calcular el cronómetro:', error);
+        res.status(500).json({ error: 'Error al calcular el cronómetro' });
+    }
+};

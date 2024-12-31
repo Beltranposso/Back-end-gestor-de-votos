@@ -8,7 +8,9 @@ exports.getVotingByAsamblea = async (req, res) => {
       include: [
         {
           model: QuestionsModel, // Incluir las preguntas relacionadas
-          as: 'preguntas', // Usar el alias 'preguntas' que definiste en las asociaciones
+          as: 'preguntas',
+          attributes: ['id', 'Pregunta'], // Usar el alias 'preguntas' que definiste en las asociaciones
+          where: { Estado: 'Abierta' }, // Condición para traer solo preguntas con estado "Abierta"
           include: [
             {
               model: OptionsModel, // Incluir las opciones relacionadas a cada pregunta

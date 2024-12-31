@@ -1,8 +1,10 @@
 const ModelUser = require('../models/UsuariosModelD.js');
 const VotesModel = require('../models/VotosMode.js');
+const { Sequelize } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const crypto = require("crypto");
-
+const { QuestionsModel, OptionsModel, Votos, UsuariosDefinitive } = require('../models/asociations.js');
+ 
 
 // const dotenv = require('dotenv'); // Si es necesario, puedes descomentar esta línea
 
@@ -95,12 +97,26 @@ exports.updateUser = async (req, res) => {
 // Este método elimina a un usuario 
 exports.DeleteUser = async (req, res) => {
     try {
-        await ModelUser.destroy({
+        // Intenta eliminar el usuario
+        const rowsDeleted = await ModelUser.destroy({
             where: { Cedula: req.params.Cedula }
         });
+
+        // Verifica si algún usuario fue eliminado
+        if (rowsDeleted) {
+            res.json({
+                message: "Usuario eliminado correctamente."
+            });
+        } else {
+            res.status(404).json({
+                message: "Usuario no encontrado."
+            });
+        }
     } catch (error) {
-        res.json({
-            "message": error.message
+        // Maneja errores y envía la respuesta
+        res.status(500).json({
+            message: "Error al eliminar el usuario.",
+            error: error.message
         });
     }
 };
@@ -124,17 +140,18 @@ exports.SetAsistencia = async (req, res) => {
     try {
         // Obtener la cédula desde los parámetros de la solicitud
         const cedula = req.params.Cedula;
+        const { asistencia } = req.body; // Asegúrate de recibir el valor de asistencia desde el cliente
 
-        // Verificar que se recibió la cédula
-        if (!cedula) {
+        // Verificar que se recibió la cédula y asistencia
+        if (!cedula || asistencia === undefined) {
             return res.status(400).json({
-                message: "La cédula del usuario es obligatoria.",
+                message: "La cédula y el estado de asistencia son obligatorios.",
             });
         }
 
         // Buscar el usuario en la base de datos por la cédula
         const user = await ModelUser.findOne({ where: { Cedula: cedula } });
-
+ 
         // Verificar si el usuario existe
         if (!user) {
             return res.status(404).json({
@@ -142,10 +159,24 @@ exports.SetAsistencia = async (req, res) => {
             });
         }
 
-        // Actualizar solo el campo Asistencia del usuario encontrado
+        // Obtener la fecha y hora actuales en un formato legible
+        const fechaHoraActual = new Date().toLocaleString("es-CO", {
+            timeZone: "America/Bogota",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+
+        // Actualizar los campos Asistencia y HoraDellegada según el estado recibido
         await ModelUser.update(
-            { Asistencia: "Presente" }, // Datos a actualizar
-            { where: { Cedula: cedula } } // Condición de búsqueda
+            { 
+                Asistencia: asistencia, // Asistencia recibida del cliente
+                HoraDellegada: asistencia === "Presente" ? fechaHoraActual : null // Solo asignar la hora si está presente
+            }, 
+            { where: { Cedula: cedula } }
         );
 
         // Opcional: Buscar nuevamente al usuario actualizado para confirmarlo
@@ -153,7 +184,8 @@ exports.SetAsistencia = async (req, res) => {
 
         // Enviar respuesta con el usuario actualizado
         res.json({
-            message: "La asistencia del usuario se actualizó correctamente."
+            message: "La asistencia del usuario y su hora de llegada se actualizaron correctamente.",
+            usuario: updatedUser // Incluye la información actualizada del usuario
         });
     } catch (error) {
         console.log("Hubo un error al actualizar la asistencia del usuario:", error.message);
@@ -164,6 +196,7 @@ exports.SetAsistencia = async (req, res) => {
 };
 
 
+ 
 
 exports.verifyUserByCedula = async (req, res) => {
     try {
@@ -220,7 +253,7 @@ exports.verifyUserByCedula = async (req, res) => {
 
  // Asegúrate de instalar jsonwebtoken si no lo tienes instalado
 
-exports.checkVotingStatusByIdCard = async (req, res) => {
+ exports.checkVotingStatusByIdCard = async (req, res) => {
     try {
         const { Cedula } = req.body; // Obtener la cédula del cuerpo de la solicitud
         const idCard = req.params.id_card; // Obtener el id_card desde los parámetros de la ruta
@@ -252,36 +285,24 @@ exports.checkVotingStatusByIdCard = async (req, res) => {
             });
         }
 
-        // Verificar si el usuario ya votó en la tabla VotesModel
-        const voteRecord = await VotesModel.findOne({
-            where: { id_voter: Cedula }
-        });
-
-        if (voteRecord) {
-            return res.json({
-                message: "El usuario ya ha votado.",
-                success: false
-            });
-        }
-
-        // Si la cédula está registrada bajo el id_card y no ha votado, generar un token
+        // Si el usuario está registrado, generar un token
         const token = jwt.sign({ Cedula, id_card: idCard }, process.env.SECRET_KEY, {
-            expiresIn: '9h' // Token temporal válido por 1 hora
+            expiresIn: '1d' // Token válido por 1 día
         });
 
         // Establecer el token en las cookies
         res.cookie('Token', token, {
-            httpOnly: true, // Aumenta la seguridad al evitar acceso desde JavaScript en el cliente
-            secure: false, // Usar cookies seguras en producción
-            maxAge: 3600000,
-            sameSite: 'lax', // 'strict' o 'lax' según sea necesario
-            path: '/', // Tiempo de expiración en milisegundos (1 hora)
+            httpOnly: true, // Evita acceso desde JavaScript en el cliente
+            secure: false, // Usar true en producción con HTTPS
+            maxAge: 24 * 60 * 60 * 1000, // 1 día en milisegundos
+            sameSite: 'lax', // Configurar 'strict' o 'lax' según necesidades
+            path: '/'
         });
 
         return res.json({
-            message: "El usuario está registrado bajo este id_card y no ha votado.",
+            message: "Usuario registrado. Token generado.",
             success: true,
-            token // Devolver el token también en la respuesta, opcional
+            token
         });
 
     } catch (error) {
@@ -292,6 +313,7 @@ exports.checkVotingStatusByIdCard = async (req, res) => {
         });
     }
 };
+
 
 
 
@@ -547,6 +569,334 @@ exports.calcularQuorumTotal = async (req, res) => {
         return res.status(500).json({
             error: 'Hubo un error al calcular el quorum',
             detalles: error.message
+        });
+    }
+};
+
+
+
+
+
+
+exports.getUsuariosPresentesByPDF = async (req, res) => {
+    try {
+        const id_card = req.params.id_card;
+
+        // Verificar que se recibió el id_card
+        if (!id_card) {
+            return res.status(400).json({
+                message: "El id_card es obligatorio.",
+            });
+        }
+
+        // Buscar usuarios con el id_card y que estén presentes
+        const usuariosPresentes = await ModelUser.findAll({
+            where: {
+                id_card: id_card, // Filtrar por id_card
+                Asistencia: "Presente", // Filtrar por usuarios presentes
+            },
+            attributes: [
+                "Nombre", // Campos a devolver
+                "Apellido",
+                "Cedula",
+                "Asistencia",
+                "quorum",
+                "HoraDellegada",
+            ],
+        });
+
+        // Verificar si se encontraron usuarios
+        if (usuariosPresentes.length === 0) {
+            return res.status(404).json({
+                message: "No se encontraron usuarios presentes con ese id_card.",
+            });
+        }
+
+        // Calcular el quórum total
+        const quorumsTotales = usuariosPresentes.reduce((total, usuario) => {
+            return total + (parseFloat(usuario.quorum) || 0); // Sumar quórum, asegurándose de manejar valores no numéricos
+        }, 0);
+
+        // Enviar los usuarios encontrados junto con el quórum total
+        res.json({
+            usuarios: usuariosPresentes,
+            quorumsTotales,
+        });
+    } catch (error) {
+        console.error("Hubo un error al obtener los usuarios presentes:", error.message);
+        res.status(500).json({
+            message: error.message,
+        });
+    }
+}
+
+
+
+
+
+exports.getUserVotesByAssembly = async (req, res) => {
+    try {
+        const { id_card } = req.params; // ID de la asamblea
+
+        // Buscar los usuarios presentes en la asamblea
+        const users = await UsuariosDefinitive.findAll({
+            where: { id_card, Asistencia: 'Presente' },
+            attributes: ['Nombre', 'Apellido', 'Cedula', 'HoraDellegada', 'quorum'],
+            include: [
+                {
+                    model: Votos,
+                    as: 'votos',
+                    attributes: ['voto'],
+                    include: [
+                        {
+                            model: OptionsModel,
+                            as: 'opcion',
+                            attributes: [],
+                            include: [
+                                {
+                                    model: QuestionsModel,
+                                    as: 'pregunta',
+                                    attributes: ['id', 'Pregunta'],
+                                    where: { id_card },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+
+        // Formatear los datos
+        const result = users.map(user => {
+            const votos = user.votos.reduce((acc, voto) => {
+                const questionKey = `${voto.opcion.pregunta.Pregunta}-${voto.opcion.pregunta.id}`;
+                acc[questionKey] = voto.voto;
+                return acc;
+            }, {});
+
+            return {
+                Nombre: user.Nombre,
+                Apellido: user.Apellido,
+                Cedula: user.Cedula,
+                HoraDellegada: user.HoraDellegada,
+                quorum: user.quorum,
+                Votos: votos,
+            };
+        });
+
+        // Respuesta
+        res.json(result);
+    } catch (error) {
+        console.error("Error al obtener los usuarios y votos:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+exports.getUsersAndVotesByExcel = async (req, res) => {
+    try {
+        const { id_card } = req.params; // ID de la asamblea
+
+        // Obtener todas las preguntas de la asamblea
+        const questions = await QuestionsModel.findAll({
+            where: { id_card }, // Filtrar por el id de la asamblea
+            attributes: ['id', 'Pregunta'], // Solo necesitamos el ID y el texto de la pregunta
+        });
+
+        // Verificar preguntas
+        console.log('Preguntas:', questions.length);
+
+        // Buscar los usuarios presentes en la asamblea
+        const users = await UsuariosDefinitive.findAll({
+            where: { id_card, Asistencia: 'Presente' },
+            attributes: ['Nombre', 'Apellido', 'Cedula', 'HoraDellegada', 'quorum'],
+        });
+
+        console.log('Usuarios encontrados:', users.length);
+        console.log('Usuarios encontrados:', users.map(user => user.Nombre));
+
+        // Obtener los votos de cada usuario (sin relaciones)
+        const votes = await Votos.findAll({
+            where: { id_voter: users.map(user => user.Cedula) },
+            include: [
+                {
+                    model: OptionsModel,
+                    as: 'opcion', // Alias para las opciones de voto
+                    include: [
+                        {
+                            model: QuestionsModel,
+                            as: 'pregunta' // Alias para las preguntas
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // Formatear los datos
+        const result = users.map(user => {
+            // Crear un objeto para almacenar los votos
+            const formattedVotes = {};
+        
+            // Inicializar con todas las preguntas, asignando null por defecto
+            questions.forEach((question, index) => {
+                const questionKey = `Pregunta-${index + 1}`; // Formato "Pregunta-1", "Pregunta-2", ...
+                formattedVotes[questionKey] = null; // Inicializamos en null
+            });
+        
+            // Asignar los votos de cada usuario si existen
+            votes.forEach(voto => {
+                if (voto.id_voter === user.Cedula) {
+                    const questionIndex = questions.findIndex(
+                        question => question.id === voto.opcion.pregunta.id
+                    );
+                    if (questionIndex !== -1) {
+                        const questionKey = `Pregunta-${questionIndex + 1}`;
+                        formattedVotes[questionKey] = voto.voto; // Asignar el voto si existe
+                    }
+                } 
+            }); 
+        
+            return {   
+                Nombre: user.Nombre,
+                Apellido: user.Apellido,
+                Cedula: user.Cedula,
+                HoraDellegada: user.HoraDellegada,
+                quorum: user.quorum,
+                ...formattedVotes, // Agregar los votos como columnas separadas
+            };
+        }); 
+
+        // Respuesta
+        res.json(result);
+    } catch (error) {
+        console.error("Error al obtener los usuarios y votos:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+     
+
+
+exports.getAllUsersOperaddor = async (req, res) => {
+    try {
+        // Obtener los usuarios con los campos requeridos
+        const Users = await ModelUser.findAll({
+            attributes: [
+                [Sequelize.fn('CONCAT', Sequelize.col('Nombre'), ' ', Sequelize.col('Apellido')), 'Nombre'],
+                'Apto',
+                'quorum',
+                'id',
+                
+            ]
+        });
+
+        res.json(Users);
+    } catch (error) {
+        console.error("Hubo un error al traer los usuarios:", error.message);
+        res.status(500).json({
+            message: "Hubo un error al traer los usuarios.",
+            errorDetails: error.message
+        });
+    }
+};
+
+
+
+
+exports.updateUserQuorum = async (req, res) => {
+    const { cedula, quorumAAgregar, PoderesDelegados } = req.body;
+
+    try {
+        // Validar que quorumAAgregar sea un número
+        if (isNaN(quorumAAgregar)) {
+            return res.status(400).json({ message: "El valor de quorumAAgregar debe ser un número." });
+        }
+
+        // Validar que PoderesDelegados no sea null o undefined
+        if (PoderesDelegados === null || PoderesDelegados === undefined) {
+            return res.status(400).json({ message: "El valor de PoderesDelegados es requerido." });
+        }
+
+        // Buscar al usuario por cédula
+        const user = await ModelUser.findOne({ where: { Cedula: cedula } });
+
+        if (!user) {
+            return res.status(404).json({ message: `No se encontró ningún usuario con la cédula ${cedula}.` });
+        }
+
+        // Convertir quorum actual y agregar el nuevo valor
+        const quorumActual = parseFloat(user.quorum || 0); // Si quorum es null, lo trata como 0
+        const nuevoQuorum = quorumActual + parseFloat(quorumAAgregar);
+
+        // Actualizar los campos en la base de datos
+        user.quorum = nuevoQuorum;
+        user.PoderesDelegados = PoderesDelegados;
+        await user.save();
+
+        // Devolver el usuario actualizado
+        res.status(200).json({
+            message: "El quorum y PoderesDelegados se actualizaron correctamente.",
+            user: {
+                Cedula: user.Cedula,
+                Nombre: user.Nombre,
+                Apellido: user.Apellido,
+                NuevoQuorum: user.quorum,
+                PoderesDelegados: user.PoderesDelegados,
+            },
+        });
+    } catch (error) {
+        console.error("Error al actualizar el quorum del usuario:", error);
+        res.status(500).json({
+            message: "Hubo un error al intentar actualizar el quorum y los poderes delegados.",
+            errorDetails: error.message,
+        });
+    }
+};exports.updateUserQuorum = async (req, res) => {
+    const { cedula, quorumAAgregar, PoderesDelegados } = req.body;
+
+    try {
+        // Validar que quorumAAgregar sea un número
+        if (isNaN(quorumAAgregar)) {
+            return res.status(400).json({ message: "El valor de quorumAAgregar debe ser un número." });
+        }
+
+        // Validar que PoderesDelegados no sea null o undefined
+        if (PoderesDelegados === null || PoderesDelegados === undefined) {
+            return res.status(400).json({ message: "El valor de PoderesDelegados es requerido." });
+        }
+
+        // Buscar al usuario por cédula
+        const user = await ModelUser.findOne({ where: { Cedula: cedula } });
+
+        if (!user) {
+            return res.status(404).json({ message: `No se encontró ningún usuario con la cédula ${cedula}.` });
+        }
+
+        // Convertir quorum actual y agregar el nuevo valor
+        const quorumActual = parseFloat(user.quorum || 0); // Si quorum es null, lo trata como 0
+        const nuevoQuorum = quorumActual + parseFloat(quorumAAgregar);
+
+        // Actualizar los campos en la base de datos
+        user.quorum = nuevoQuorum;
+        user.PoderesDelegados = PoderesDelegados;
+        await user.save();
+
+        // Devolver el usuario actualizado
+        res.status(200).json({
+            message: "El quorum y PoderesDelegados se actualizaron correctamente.",
+            user: {
+                Cedula: user.Cedula,
+                Nombre: user.Nombre,
+                Apellido: user.Apellido,
+                NuevoQuorum: user.quorum,
+                PoderesDelegados: user.PoderesDelegados,
+            },
+        });
+    } catch (error) {
+        console.error("Error al actualizar el quorum del usuario:", error);
+        res.status(500).json({
+            message: "Hubo un error al intentar actualizar el quorum y los poderes delegados.",
+            errorDetails: error.message,
         });
     }
 };

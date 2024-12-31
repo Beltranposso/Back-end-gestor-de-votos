@@ -78,9 +78,13 @@ exports.getAllPropuestas = async (req, res) => {
             "message": error.message
         });
     }
-};exports.createProposal = async (req, res) => {
+};
+
+
+
+exports.createProposal = async (req, res) => {
     // Extraer preguntas del body
-    const { id_card, preguntas } = req.body;
+    const { id_card, preguntas, Duracion, tiempoInicio } = req.body;
 
     console.log('Datos recibidos:', req.body);
 
@@ -93,15 +97,30 @@ exports.getAllPropuestas = async (req, res) => {
             });
         }
 
-        // Inicializar arrays para preguntas y opciones
-        const questionsData = [];
-        const optionsData = []; 
-
         // Verificar si el id_card existe en la base de datos
         const asamblea = await AsambleaModel.findByPk(id_card);
         if (!asamblea) { 
             return res.status(400).json({ message: `El id_card ${id_card} no existe.` });
         }
+
+        // Verificar si hay alguna pregunta con estado "Abierta"
+        const preguntaAbierta = await QuestionsModel.findOne({
+            where: {
+                Estado: 'Abierta',
+                id_card: id_card, // Opcional: Filtrar por id_card si es relevante
+            }
+        });
+
+        if (preguntaAbierta) {
+            return res.status(210).json({ 
+                message: 'Ya existe una pregunta con estado "Abierta". No se puede registrar la encuesta.',
+                preguntaAbierta: preguntaAbierta // Detalle opcional para depuración
+            });
+        }
+
+        // Inicializar arrays para preguntas y opciones
+        const questionsData = [];
+        const optionsData = [];
 
         // Iterar sobre cada pregunta
         for (const preguntaData of preguntas) {
@@ -112,6 +131,9 @@ exports.getAllPropuestas = async (req, res) => {
                 id: id,
                 id_card: id_card,
                 Pregunta: title,
+                Duracion: Duracion,
+                TiempoInicio: tiempoInicio,
+                Estado: 'Abierta', // Establecer el estado inicial de la nueva pregunta
             });
 
             // Crear las opciones para cada pregunta
@@ -122,7 +144,7 @@ exports.getAllPropuestas = async (req, res) => {
 
             // Añadir las opciones creadas al array optionsData
             optionsData.push(...optionsCreated);
-            
+
             // Añadir la pregunta creada al array questionsData
             questionsData.push(question);
         }
@@ -144,4 +166,4 @@ exports.getAllPropuestas = async (req, res) => {
             errorDetails: error.message 
         });
     }
-}
+};

@@ -13,7 +13,15 @@ const Question = db.define('pregunta', {
     },
     Pregunta: { 
         type: DataTypes.STRING 
-    }
+    },
+    Duracion:{
+        type: DataTypes.INTEGER
+    },
+    TiempoInicio:{
+        type: DataTypes.STRING
+    },
+    Estado:{type: DataTypes.ENUM('Abierta','Cerrada')},
+   
 });
 
 module.exports = Question;

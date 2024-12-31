@@ -5,13 +5,17 @@ const { DataTypes } = require("sequelize");
 
 
 const Votos = db.define('votes',{
-    id_Option: {type: DataTypes.STRING},
+
+    id_option: {type: DataTypes.INTEGER,allowNull: true},
     id_voter:{type: DataTypes.INTEGER},
-    Voto:{type:DataTypes.STRING},
-    id_card:{type:DataTypes.STRING}
+    voto:{type:DataTypes.STRING},
+    id_card:{type:DataTypes.STRING}, 
+    id_question: {
+        type: DataTypes.STRING,
+    }
 
 
 }) 
 
 
-module.exports = Votos 
+module.exports = Votos  

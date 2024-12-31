@@ -57,7 +57,7 @@ UsuariosDefinitive.hasMany(Votos, {
 Votos.belongsTo(UsuariosDefinitive, {
     foreignKey: 'id_voter',  // id_voter en la tabla de Votos
     targetKey: 'Cedula',     // Cedula como clave primaria en UsuariosDefinitive
-    as: 'usuario'
+    as: 'usuarios'
 });
 
 // Exportar los modelos con las asociaciones necesarias

@@ -20,7 +20,9 @@ const cookie = require('cookie');
 const RoutesPropuestas = require( './routes/routesPropuesta.js');
 const ModelUser = require('./models/UsuariosModelD.js');
 const userModel = require('./models/UsersModel.js');
+const QuestionModel = require('./models/QuestionsModel.js');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 const bcrypt = require('bcrypt');
 
 // Configuración de variables de entorno
@@ -29,17 +31,17 @@ console.log('SECRET_KEY:', process.env.SECRET_KEY);
 
 const app = express();
 const server = http.createServer(app);
-
+ 
 // Configurar Socket.io
 const io = new SocketServer(server, {
     cors: {
         origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"], // Corregido "http//:" a "http://"
     }
-});
+}); 
 
 app.use(cookieParser()); 
 // Middleware para manejo de solicitudes
-app.use(cors({
+app.use(cors({ 
     /* origin: ['https://control360.co', 'https://controlvotantes360.co.control360.co'] */
     origin: ['http://localhost:5173', 'http://localhost:5174','http://localhost:5175'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -47,13 +49,35 @@ app.use(cors({
 }));
 app.use(express.json()); 
    
+
+app.get('/download-template', (req, res) => {
+    const filePath = path.join(__dirname, 'upload', 'Plantilla.xlsx');
+
+    // Verifica si el archivo existe
+    res.download(filePath, 'Plantilla.xlsx', (err) => {
+        if (err) {
+            console.error('Error al enviar el archivo:', err);
+            res.status(500).json({ message: 'Error al descargar la plantilla' });
+        }
+    });
+});
+
+
+
+
+
+
+
+
+
+
 // Rutas
 app.use('/Usuarios', UserRoutes);
 app.use('/card', CardRoutes);
 app.use('/questions', QuestionsRoutes);
 app.use('/options', OptionRoutes);
 app.use('/votes', VotesRoutes);  
-app.use('/idCard', cardRouterid);
+app.use('/idCard', cardRouterid); 
 app.use('/UsersDefinitive', ModelUserDefinitive); 
 app.use('/Propuestas', RoutesPropuestas);
 
@@ -62,7 +86,7 @@ app.post('/login', async (req, res) => {
     try {
         const { Cedula, Contraseña } = req.body;
 
-        console.log('Datos recibidos:', { Cedula, Contraseña });
+        
 
         const user = await Usermodel.findOne({ where: { Cedula } });
         if (!user) {
@@ -84,25 +108,27 @@ app.post('/login', async (req, res) => {
             return res.status(403).json({ message: 'Cargo no autorizado' });
         }
 
-        // Crear token
+        // Crear token incluyendo el campo 'id'
         const token = jwt.sign(
-            { Cedula: user.Cedula, Nombre: user.Nombre, Cargo: userCargo },
+            { id: user.id, Cedula: user.Cedula, Nombre: user.Nombre, Cargo: userCargo },
             process.env.SECRET_KEY,
-            { expiresIn: '6h' } 
+            { expiresIn: '1d' }
         );
 
         // Configurar la cookie del token
         res.setHeader('Set-Cookie', cookie.serialize('auth_token', token, {
             httpOnly: true,
-            secure: false, // true en producción
+            secure: true, // true en producción
             sameSite: 'lax', // 'strict' o 'lax' según sea necesario
             path: '/',
-            maxAge: 3600, // 1 hora
-          }));
+            maxAge: 86400, // 1 día en segundos
+        }));
+
         // Respuesta con información adicional
         return res.status(200).json({
             message: 'Inicio de sesión exitoso',
             usuario: {
+                id: user.id,
                 Cedula: user.Cedula,
                 Nombre: user.Nombre,
                 Cargo: userCargo
@@ -113,6 +139,27 @@ app.post('/login', async (req, res) => {
         return res.status(500).json({ message: 'Error en el servidor. Por favor intenta de nuevo más tarde.' });
     }
 });
+
+
+
+
+
+app.post('/Logout', (req, res) => {
+    try {
+        res.setHeader('Set-Cookie', cookie.serialize('auth_token', '', {
+            httpOnly: true,
+            secure: true, // Asegúrate de ajustarlo según el entorno
+            sameSite: 'lax', // Igual que en el login
+            path: '/',
+            expires: new Date(0), // Fecha en el pasado para eliminar la cookie
+        }));
+        return res.status(200).json({ message: 'Sesión cerrada y cookie eliminada' });
+    } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+        return res.status(500).json({ message: 'Error al cerrar sesión' });
+    }
+});
+
 // Ruta de validación
 app.post('/Validation', async (req, res) => {
     try {
@@ -151,7 +198,7 @@ app.get('/Link/:id', async (req, res) => {
 (async () => {
     try {
         await db.authenticate();
-        console.log('Conexión a la base de datos exitosa');
+       
     } catch (error) {
         console.log('Error en la conexión a la base de datos');
     }
@@ -173,16 +220,106 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('I', msg);
     });
 
+
+
+
+
     socket.on('señal', (señal) => {
         socket.broadcast.emit('M',"user:"+ señal);
     });
         socket.on('stado', (estado) => {
-        console.log('Recibido iniciar:', estado);
+      
         socket.broadcast.emit('ISO', "señal:",estado); 
 
     })
 
-    socket.on('Asistencia', (m) => {
+
+
+
+
+    socket.on('startCronometro', async (preguntaId) => {
+        console.log('Iniciando cronómetro para pregunta:', preguntaId);
+    
+        try {
+            // Obtener la pregunta desde la base de datos
+            const question = await QuestionModel.findOne({
+                where: { id: preguntaId },
+                attributes: ['TiempoInicio', 'Duracion'], // Corregido: columna debe coincidir
+            });
+    
+            if (!question) {
+                socket.emit('error', 'Pregunta no encontrada');
+                return;
+            }
+    
+            const { TiempoInicio, Duracion } = question;
+           
+            // Convertir TiempoInicio a formato válido
+            const inicio = convertirFecha(TiempoInicio);
+            if (!inicio) {
+                socket.emit('error', 'El formato de TiempoInicio no es válido');
+                return;
+            }
+     
+            // Convertir Duración a número en segundos
+            const duracionEnSegundos = parseInt(Duracion, 10);
+            if (isNaN(duracionEnSegundos)) {
+                socket.emit('error', 'Duración inválida');
+                return;
+            }
+     
+            // Iniciar cronómetro
+            const interval = setInterval(async () => {
+                const ahora = Date.now(); // Tiempo actual
+                const tiempoTranscurrido = Math.floor((ahora - inicio.getTime()) / 1000); // Diferencia en segundos
+                const tiempoRestante = duracionEnSegundos - tiempoTranscurrido;
+             
+                if (tiempoRestante <= 0) {
+                    // Enviar evento al cliente con tiempo restante 0 y estado terminado
+                    socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
+            
+                    // Actualizar el campo "Estado" a "Cerrada" en la base de datos
+                    try {
+                        await QuestionModel.update(
+                            { Estado: "Cerrada" }, // Valor a actualizar
+                            { where: { id: preguntaId } } // Condición para identificar la fila
+                        );
+                      
+                    } catch (error) {
+                        console.error(`Error al actualizar el estado para pregunta ${preguntaId}:`, error);
+                    }
+            
+                    clearInterval(interval); // Detener el cronómetro
+                   
+                } else { 
+                    // Enviar evento con el tiempo restante
+                    socket.emit('cronometro', { tiempoRestante, terminado: false });
+                    console.log(`Tiempo restante para pregunta ${preguntaId}: ${tiempoRestante}s`);
+                    console.log('TiempoInicio:', TiempoInicio);
+                    console.log('Duracion:', inicio);
+              
+                }
+            }, 1000); // Actualizar cada segundo
+    
+            // Limpiar el intervalo si el cliente se desconecta
+            socket.on('disconnect', () => {
+                clearInterval(interval);
+               
+            });
+    
+        } catch (error) { 
+            console.error('Error en el cronómetro:', error);
+            socket.emit('error', 'Error al iniciar el cronómetro');
+        }
+    }); 
+
+    socket.on('Dataidpregunta', (m) => {
+        console.log('Recibido:', m);    
+        socket.broadcast.emit('DataQ', 'idpregunta:'+m);
+    })  
+
+    socket.on('Asisten', (m) => {
+      
       
         socket.broadcast.emit('ASIST', 'cedula votante:'+m);
     })
@@ -202,7 +339,27 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log(`Cliente desconectado: ${socket.id}`);
     });
+    
+
+
+
 }); 
+function convertirFecha(fechaOriginal) {
+    try {
+        const [fecha, hora] = fechaOriginal.split(', ');
+        const [dia, mes, anio] = fecha.split('/');
+        
+        // Crear la fecha usando el constructor con valores numéricos
+        return new Date(
+            parseInt(anio),
+            parseInt(mes) - 1, // Los meses en JavaScript van de 0 a 11
+            parseInt(dia),
+            ...hora.split(':').map(Number)
+        );
+    } catch (error) {
+        return null;
+    }
+}
 
 // Ruta para obtener estado de votación por ID
 app.get('/api/votacion/estado/:id', async (req, res) => {
@@ -295,9 +452,9 @@ app.get('/DataAutenticathed', (req, res) => {
       }
   
       // Extraer el rol (cargo) del token y devolverlo
-      const { Cargo, Cedula } = decoded;
+      const { Cargo, Cedula,id} = decoded;
       console.log("Cargo a devolver :", Cargo);
-      res.json({ Cargo , Cedula });
+      res.json({ Cargo , Cedula,id });
     });
   });
 
@@ -397,7 +554,7 @@ app.get('/DataAutenticathed', (req, res) => {
 
   
   
-  app.post('/Check-user-token', async (req, res) => {
+app.post('/Check-user-token', async (req, res) => {
     try {
         // Obtener el token de las cookies
         const token = req.cookies.Token;
@@ -427,7 +584,7 @@ app.get('/DataAutenticathed', (req, res) => {
         }
 
         // Obtener el id_card desde el body de la solicitud
-        const { id_card } = req.body;  // Asegúrate de que el cliente envíe este dato en el cuerpo de la solicitud
+        const { id_card } = req.body; // Asegúrate de que el cliente envíe este dato en el cuerpo de la solicitud
         console.log('id_card recibido del body:', id_card); // Log para verificar el id_card recibido
 
         // Verificar si el id_card está presente
@@ -439,7 +596,7 @@ app.get('/DataAutenticathed', (req, res) => {
         }
 
         // Convertir la cédula a tipo entero si no lo es
-        const cedulaInt = parseInt(Cedula, 10);  // Asegúrate de usar base 10 al convertir a entero
+        const cedulaInt = parseInt(Cedula, 10); // Asegúrate de usar base 10 al convertir a entero
         console.log('Cédula convertida:', cedulaInt);
 
         // Verificar si la conversión fue exitosa
@@ -462,32 +619,107 @@ app.get('/DataAutenticathed', (req, res) => {
             });
         }
 
-        // Verificar si el usuario ya votó en la tabla VotesModel
-        const voteRecord = await VotesModel.findOne({
-            where: { id_voter: cedulaInt }
-        });
-
-        if (voteRecord) {
-            return res.json({
-                message: "El usuario ya ha votado.",
-                success: false
-            });
-        }
-
-        // Si el usuario está registrado y no ha votado
+        // Si el usuario está registrado
         return res.json({
-            message: "Ya te verificaste en esta Asmablea.",
+            message: "El usuario está registrado en esta Asamblea.",
             success: true
         });
 
     } catch (error) {
-        console.error("Error en el servidor:", error);  // Log para detalles del error
+        console.error("Error en el servidor:", error); // Log para detalles del error
         res.status(500).json({
             message: "Error interno del servidor.",
             error: error.message
         });
     }
 });
+
+
+app.post('/Check-user-vote', async (req, res) => {
+    try {
+        // Obtener el token de las cookies
+        const token = req.cookies.Token;
+
+
+        // Verificar si el token existe
+        if (!token) {
+            return res.status(400).json({
+                message: "No se encontró el token en las cookies.",
+                success: false
+            });
+        }
+
+        // Decodificar el token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+
+        // Obtener la cédula desde el token decodificado
+        const { Cedula } = decoded;
+        console.log('Cédula decodificada:', Cedula); // Log para verificar la cédula
+
+        // Verificar si la cédula está presente
+        if (!Cedula) {
+            return res.status(400).json({
+                message: "Cédula no encontrada en el token.",
+                success: false
+            });
+        }
+
+        // Obtener el id_question desde el cuerpo de la solicitud
+        const { id_question } = req.body;
+        console.log('id_question recibido del body:', id_question); // Log para verificar el id_question recibido
+
+        // Verificar si el id_question está presente
+        if (!id_question) {
+            return res.status(400).json({
+                message: "ID de la pregunta no proporcionado.",
+                success: false
+            });
+        }
+
+        // Convertir la cédula a tipo entero si no lo es
+        const cedulaInt = parseInt(Cedula, 10); // Asegúrate de usar base 10 al convertir a entero
+        console.log('Cédula convertida:', cedulaInt);
+
+        // Verificar si la conversión fue exitosa
+        if (isNaN(cedulaInt)) {
+            return res.status(400).json({
+                message: "La cédula no es válida.",
+                success: false
+            });
+        }
+
+        // Verificar si el usuario ya votó en la pregunta específica
+        const vote = await VotesModel.findOne({
+            where: { id_voter: cedulaInt, id_question }
+        });
+
+        if (!vote) {
+            return res.json({
+                message: "El usuario no ha votado en esta pregunta.",
+                success: true
+            });
+        }
+
+        // Si el usuario ya votó en esta pregunta
+        return res.json({
+            message: "El usuario ya votó en esta pregunta.",
+            success: false
+        });
+
+    } catch (error) {
+        console.error("Error en el servidor:", error); // Log para detalles del error
+        res.status(500).json({
+            message: "Error interno del servidor.",
+            error: error.message
+        });
+    }
+});
+
+
+
+
+
+
 
 // Configurar el puerto desde la variable de entorno o usar un valor por defecto
 const PORT = process.env.PORT || 8000;
