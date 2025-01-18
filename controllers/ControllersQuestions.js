@@ -151,3 +151,33 @@ exports.getCronometro = async (req, res) => {
         res.status(500).json({ error: 'Error al calcular el cronómetro' });
     }
 };
+
+
+
+exports.closeQuestion = async (req, res) => {
+    const id = req.params.id;
+    console.log(id);
+    try {
+        // Obtener el ID de la pregunta desde req.params
+        // Buscar y actualizar el campo Estado a "Cerrada"
+        const result = await QuestionModel.update(
+            { Estado: "Cerrada" }, // Valores a actualizar
+            { where: { id } } // Condición para encontrar la pregunta
+        );
+
+        // Verificar si la actualización fue exitosa
+        if (result[0] === 0) {
+            return res.json({
+                message: `No se encontró ninguna pregunta con el ID: ${id}`
+            });
+        }
+
+        res.json({
+            message: "El estado de la pregunta ha sido cambiado a 'Cerrada' exitosamente"
+        });
+    } catch (error) {
+        res.json({
+            message: error.message + ", error al cerrar la pregunta"
+        });
+    }
+};

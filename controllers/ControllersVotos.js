@@ -231,3 +231,57 @@ exports.obtenerResultadosPorCard = async (req, res) => {
         res.status(500).json({ message: 'Error en la obtención de resultados', error: error.message });
     }
 };
+
+
+
+
+exports.getOpcionesConQuorumByPregunta = async (req, res) => {
+    try {
+        const { id } = req.params; // Obtener el ID de la pregunta desde los parámetros de la ruta
+        console.log(id);
+        // Obtener las opciones asociadas a la pregunta
+        const opciones = await OptionsModel.findAll({
+            where: { id }, // Filtrar por el id_pregunta
+            attributes: ['id', 'opcion'] // Traer solo los campos necesarios
+        });
+
+        // Crear un arreglo para almacenar las opciones con sus totales de quorum
+        const opcionesConQuorum = [];
+
+        for (const opcion of opciones) {
+            // Obtener los votos de la opción actual
+            const votos = await Votos.findAll({
+                where: { id_Option: opcion.id },
+                attributes: ['id_voter'] // Traer solo el ID del votante
+            });
+
+            // Calcular la suma de quorums
+            let totalQuorum = 0;
+            for (const voto of votos) {
+                // Buscar el usuario correspondiente al voto
+                const usuario = await UsuariosDefinitive.findOne({
+                    where: { Cedula: voto.id_voter },
+                    attributes: ['quorum'] // Traer solo el campo quorum
+                });
+
+                // Sumar el quorum del usuario (si existe)
+                if (usuario) {
+                    totalQuorum += usuario.quorum;
+                }
+            }
+
+            // Agregar la opción y su total de quorum al arreglo
+            opcionesConQuorum.push({
+                opcion: opcion.opcion,
+                totalQuorum
+            });
+        }
+
+        // Responder con las opciones y sus totales de quorums
+        res.json(opcionesConQuorum);
+    } catch (error) {
+        res.status(500).json({
+            message: `Error al obtener las opciones: ${error.message}`
+        });
+    }
+};

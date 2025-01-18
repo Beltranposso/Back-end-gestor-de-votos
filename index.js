@@ -24,7 +24,7 @@ const QuestionModel = require('./models/QuestionsModel.js');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const bcrypt = require('bcrypt');
-
+ 
 // Configuración de variables de entorno
 dotenv.config();
 console.log('SECRET_KEY:', process.env.SECRET_KEY);
@@ -38,6 +38,7 @@ const io = new SocketServer(server, {
         origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"], // Corregido "http//:" a "http://"
     }
 }); 
+
 
 app.use(cookieParser()); 
 // Middleware para manejo de solicitudes
@@ -86,7 +87,7 @@ app.post('/login', async (req, res) => {
     try {
         const { Cedula, Contraseña } = req.body;
 
-        
+         
 
         const user = await Usermodel.findOne({ where: { Cedula } });
         if (!user) {
@@ -168,7 +169,7 @@ app.post('/Validation', async (req, res) => {
 
         if (!user || Contraseña !== user.Contraseña) {
             return res.status(401).json({ success: false, message: 'Cedula o Contraseña incorrectos' });
-        }
+        } 
 
         const existingVote = await VotesModel.findOne({ where: { id_voter: Cedula } });
 
@@ -222,11 +223,17 @@ io.on('connection', (socket) => {
 
 
 
-
-
+    socket.on('CerrarPregunta', (close) => {
+    
+        socket.broadcast.emit('CL', close);     
+    })
+ 
+ 
     socket.on('señal', (señal) => {
         socket.broadcast.emit('M',"user:"+ señal);
-    });
+    }); 
+
+
         socket.on('stado', (estado) => {
       
         socket.broadcast.emit('ISO', "señal:",estado); 
@@ -235,7 +242,7 @@ io.on('connection', (socket) => {
 
 
 
-
+ 
 
     socket.on('startCronometro', async (preguntaId) => {
         console.log('Iniciando cronómetro para pregunta:', preguntaId);
@@ -244,18 +251,20 @@ io.on('connection', (socket) => {
             // Obtener la pregunta desde la base de datos
             const question = await QuestionModel.findOne({
                 where: { id: preguntaId },
-                attributes: ['TiempoInicio', 'Duracion'], // Corregido: columna debe coincidir
+                attributes: ['TiempoInicio','Duracion'], // Corregido: columna debe coincidir
             });
-    
-            if (!question) {
+
+            
+            if (!question) { 
                 socket.emit('error', 'Pregunta no encontrada');
                 return;
             }
-    
+     
             const { TiempoInicio, Duracion } = question;
            
             // Convertir TiempoInicio a formato válido
             const inicio = convertirFecha(TiempoInicio);
+            console.log('TiempoInicio convertido:', inicio);
             if (!inicio) {
                 socket.emit('error', 'El formato de TiempoInicio no es válido');
                 return;
@@ -270,48 +279,54 @@ io.on('connection', (socket) => {
      
             // Iniciar cronómetro
             const interval = setInterval(async () => {
-                const ahora = Date.now(); // Tiempo actual
+                const ahora = Date.now();
+                console.log('Tiempo actual:', ahora); // Tiempo actual
                 const tiempoTranscurrido = Math.floor((ahora - inicio.getTime()) / 1000); // Diferencia en segundos
                 const tiempoRestante = duracionEnSegundos - tiempoTranscurrido;
-             
+                
                 if (tiempoRestante <= 0) {
+                    
                     // Enviar evento al cliente con tiempo restante 0 y estado terminado
                     socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
-            
+                    
                     // Actualizar el campo "Estado" a "Cerrada" en la base de datos
                     try {
                         await QuestionModel.update(
                             { Estado: "Cerrada" }, // Valor a actualizar
                             { where: { id: preguntaId } } // Condición para identificar la fila
                         );
-                      
+                        
                     } catch (error) {
                         console.error(`Error al actualizar el estado para pregunta ${preguntaId}:`, error);
                     }
-            
+                    
                     clearInterval(interval); // Detener el cronómetro
-                   
+                    
                 } else { 
                     // Enviar evento con el tiempo restante
                     socket.emit('cronometro', { tiempoRestante, terminado: false });
-                    console.log(`Tiempo restante para pregunta ${preguntaId}: ${tiempoRestante}s`);
-                    console.log('TiempoInicio:', TiempoInicio);
-                    console.log('Duracion:', inicio);
-              
+                    console.log('Tiempo restante:', tiempoTranscurrido); 
+                    console.log('Tiempo restante:', tiempoRestante);
+                    
                 }
             }, 1000); // Actualizar cada segundo
-    
+            
             // Limpiar el intervalo si el cliente se desconecta
             socket.on('disconnect', () => {
                 clearInterval(interval);
-               
+                 
             });
-    
+     
         } catch (error) { 
             console.error('Error en el cronómetro:', error);
             socket.emit('error', 'Error al iniciar el cronómetro');
         }
     }); 
+
+
+
+
+
 
     socket.on('Dataidpregunta', (m) => {
         console.log('Recibido:', m);    

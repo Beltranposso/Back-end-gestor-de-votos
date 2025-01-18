@@ -29,7 +29,7 @@ exports.getCard = async (req, res) => {
         // Buscar la tarjeta por id
         const card = await Cardmodel.findOne({
             where: { id }
-        });
+        }); 
 
         // Si no se encuentra la tarjeta, responder con un mensaje claro
         if (!card) {
@@ -41,7 +41,7 @@ exports.getCard = async (req, res) => {
         // Respuesta exitosa
         res.status(200).json(card);
     } catch (error) {
-        // Log detallado del error para depuración
+        // Log detallado del error pa ra depuración
         console.error("Error al traer la tarjeta por su ID:", error.message);
 
         // Respuesta en caso de error del servidor
@@ -135,15 +135,32 @@ exports.createCard = async (req, res) => {
 // Eliminar una tarjeta por su ID
 exports.DeleteCard = async (req, res) => {
     try {
-        await Cardmodel.destroy({
-            where: { id: req.params.id }
+        const cardId = req.params.id;
+
+        // Verificar si el registro existe
+        const card = await Cardmodel.findOne({ where: { id: cardId } });
+        if (!card) {
+            return res.status(404).json({
+                message: "Card not found"
+            });
+        }
+
+        // Eliminar el registro
+        await Cardmodel.destroy({ where: { id: cardId } });
+
+        // Responder con éxito
+        res.status(200).json({
+            message: "Card deleted successfully"
         });
     } catch (error) {
-        res.json({
-            "message": error.message 
-        });
+        // Manejo de errores
+        res.status(500).json({
+            message: "An error occurred",
+            error: error.message
+        }); 
     } 
 };
+
 
 // Obtener tarjetas por cédula
 exports.getCardsByCedula = async (req, res) => {
