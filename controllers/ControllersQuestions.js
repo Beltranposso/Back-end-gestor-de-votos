@@ -107,7 +107,7 @@ exports.getCronometro = async (req, res) => {
         const question = await QuestionModel.findOne({
             where: { id },
             attributes: ['TiempoInicio', 'Duracion'], // Solo obtenemos las columnas necesarias
-        });
+        }); 
 
         if (!question) {
             return res.status(404).json({ error: 'Pregunta no encontrada' });

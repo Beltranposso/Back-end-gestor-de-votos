@@ -83,27 +83,51 @@ exports.RegisterVote = async (req, res) => {
   
  // Asegúrate de importar el modelo de Usuarios
 
+
+ /* modificar */
  exports.getvoto = async (req, res) => {
     try {
+        // Obtener los votos filtrando por id_card
         const votos = await Votos.findAll({
             where: { id_card: req.params.id_card },
-            include: [
-                {
-                    model: UsuariosDefinitive,
-                    as: 'usuarios', // Usar el alias definido en la relación
-                    attributes: ['Nombre'], // Seleccionar los campos que necesitas
-                }
-            ]
+            attributes: ['id_option', 'id_voter', 'voto', 'id_card', 'id_question'], // Ajusta según lo necesario
         });
-        res.json(votos);
+
+        if (votos.length === 0) {
+            return res.json({ message: "No se encontraron votos para el id_card proporcionado." });
+        }
+
+        // Obtener los usuarios asociados a este id_card
+        const usuarios = await ModelUser.findAll({
+            where: { id_card: req.params.id_card },
+            attributes: ['Nombre', 'Apellido', 'Cedula'], // Ajusta según lo que necesites
+        });
+
+        if (usuarios.length === 0) {
+            return res.json({ message: "No se encontraron usuarios asociados al id_card proporcionado." });
+        }
+
+        // Combinar la información de votos y usuarios manualmente
+        const resultado = votos.map((voto) => {
+            return {
+                ...voto.dataValues, // Incluye todos los campos del voto
+                usuarios: usuarios.map((usuario) => ({
+                    Nombre: usuario.Nombre,
+                    Apellido: usuario.Apellido,
+                    Cedula: usuario.Cedula,
+                })),
+            };
+        });
+
+        // Devolver la información combinada
+        res.json(resultado);
     } catch (error) {
-        console.log("Hubo un error al traer los votos");
-        res.json({
-            "message": error.message
+        console.error("Hubo un error al traer los votos:", error.message);
+        res.status(500).json({
+            message: "Error al obtener los datos",
         });
     }
 };
-
 
 // Obtiene los votos por id de opción
 exports.getVotosByid = async (req, res) => {
@@ -285,3 +309,79 @@ exports.getOpcionesConQuorumByPregunta = async (req, res) => {
         });
     }
 };
+
+
+
+
+exports.getProcessedDataByPregunta = async (req, res) => {
+    try {
+        const { id_card,IdPregunta } = req.params; // Asumimos que los parámetros son id_card y IdPregunta
+       
+        // Obtener la pregunta específica con el IdPregunta
+        if (!IdPregunta) {
+            return res.status(400).json({ message: "IdPregunta es requerido en el cuerpo de la solicitud" });
+        }
+        console.log("id card",id_card);
+        console.log("idf pregunta",IdPregunta);
+        const pregunta = await QuestionsModel.findOne({
+            where: { id: IdPregunta, id_card }, // Filtrar por IdPregunta y id_card
+            include: [
+                {
+                    model: OptionsModel,
+                    as: 'opciones', 
+                    include: [
+                        {
+                            model: Votos,
+                            as: 'votos',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        if (!pregunta) {
+            return res.status(404).json({ message: "Pregunta no encontrada" });
+        }
+
+        // Obtener los usuarios asociados a la asamblea
+        const usuarios = await UsuariosDefinitive.findAll({
+            where: { id_card },
+        });
+
+        // Crear un mapa de quórum por usuario
+        const userPowerMap = new Map(
+            usuarios.map((usuario) => [usuario.Cedula, usuario.quorum])
+        );
+
+        // Arreglos para almacenar las opciones y los votos ponderados
+        const opciones = [];
+        const votos = [];
+
+        // Procesar las opciones y votos
+        pregunta.opciones.forEach((opcion) => {
+            // Calcular los votos ponderados para cada opción
+            const votosPonderados = opcion.votos.reduce((total, voto) => {
+                const userPower = userPowerMap.get(voto.id_voter) || 0;
+                return total + userPower;
+            }, 0);
+
+            // Agregar la opción y los votos ponderados a los arreglos
+            opciones.push(opcion.opcion);
+            votos.push(votosPonderados);
+        });
+
+        // Crear el resultado en el formato solicitado
+        const result = {
+            id_pregunta: pregunta.id,
+            texto_pregunta: pregunta.Pregunta,
+            opciones: opciones,
+            Votos: votos,
+        };
+
+        res.json(result);
+    } catch (error) {
+        console.error("Hubo un error al procesar los datos:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+

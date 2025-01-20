@@ -23,7 +23,7 @@ exports.getVotingByAsamblea = async (req, res) => {
 
     // Si no se encuentra la asamblea, devolver un error
     if (!asam) {
-      return res.status(404).json({ message: 'Asamblea no encontrada' });
+      return res.status(404).json([]);
     }
 
     // Devolver los datos estructurados

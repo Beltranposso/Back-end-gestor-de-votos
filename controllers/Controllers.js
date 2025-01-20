@@ -47,6 +47,33 @@ exports.getUser = async (req, res) => {
     }
 };
 
+
+
+exports.getUserONE = async (req, res) => {
+    console.log(req.params.id);
+    try {
+        const user = await Usermodel.findOne({
+            where: { id: req.params.id }
+        });
+
+        if (!user) {
+            return res.json({
+                message: "Usuario no encontrado",
+                id: req.params.id
+            });
+        }
+
+        res.json(user);
+    } catch (error) {
+        console.log("Hubo un error al buscar el usuario");
+        res.json({
+            message: error.message
+        });
+    }
+};
+
+
+
 exports.getUserOperador = async (req, res) => {
     try {
         const user = await Usermodel.findAll({
@@ -164,17 +191,19 @@ exports.createUser = async (req, res) => {
 
 // Este método actualiza la información de un usuario
 exports.updateUser = async (req, res) => {
+
+    console.log(req.body);
     try {
-        await Usermodel.update(req.body, {
-            where: { Cedula: req.params.Cedula }
-        });
-        res.json({
-            "message": "Se actualizó correctamente la información"
-        });
+        const user = await Usermodel.findByPk(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: `Usuario con ID ${req.params.id} no encontrado` });
+        }
+
+        const updatedUser = await user.update(req.body);
+        res.json({ message: "Usuario actualizado correctamente", data: updatedUser });
     } catch (error) {
-        res.json({
-            "message": error.message
-        });
+        res.status(500).json({ message: "Error al actualizar el usuario", error: error.message });
     }
 };
 

@@ -6,3 +6,4 @@ const router_5 = express.Router();
 router_5.get('/:id', getVotingByAsamblea);
 
 module.exports = router_5;
+ 

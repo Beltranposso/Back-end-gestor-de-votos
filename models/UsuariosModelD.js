@@ -6,7 +6,8 @@ const Tabla = db.define('usuarios', {
     id: {
         type: DataTypes.STRING,
         defaultValue: () => uuidv4(), // Generar un UUID por defecto
-        allowNull: true
+        allowNull: true,
+        primaryKey: true
     },
     Nombre: { 
         type: DataTypes.STRING,
@@ -16,7 +17,6 @@ const Tabla = db.define('usuarios', {
     },
     Cedula: { 
         type: DataTypes.INTEGER,
-        primaryKey: true
     },
     quorum: { 
         type: DataTypes.FLOAT 

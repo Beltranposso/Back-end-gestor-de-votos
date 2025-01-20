@@ -251,17 +251,22 @@ io.on('connection', (socket) => {
             // Obtener la pregunta desde la base de datos
             const question = await QuestionModel.findOne({
                 where: { id: preguntaId },
-                attributes: ['TiempoInicio','Duracion'], // Corregido: columna debe coincidir
+                attributes: ['TiempoInicio', 'Duracion', 'Estado'], // Incluir 'Estado' para la validación inicial
             });
-
-            
-            if (!question) { 
+    
+            if (!question) {
                 socket.emit('error', 'Pregunta no encontrada');
                 return;
             }
-     
-            const { TiempoInicio, Duracion } = question;
-           
+    
+            const { TiempoInicio, Duracion, Estado } = question;
+    
+            // Si la pregunta ya está cerrada, enviar tiempo 0 y terminar
+            if (Estado === 'Cerrada') {
+                socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
+                return;
+            }
+    
             // Convertir TiempoInicio a formato válido
             const inicio = convertirFecha(TiempoInicio);
             console.log('TiempoInicio convertido:', inicio);
@@ -269,61 +274,74 @@ io.on('connection', (socket) => {
                 socket.emit('error', 'El formato de TiempoInicio no es válido');
                 return;
             }
-     
+    
             // Convertir Duración a número en segundos
             const duracionEnSegundos = parseInt(Duracion, 10);
             if (isNaN(duracionEnSegundos)) {
                 socket.emit('error', 'Duración inválida');
                 return;
             }
-     
+    
             // Iniciar cronómetro
             const interval = setInterval(async () => {
-                const ahora = Date.now();
-                console.log('Tiempo actual:', ahora); // Tiempo actual
-                const tiempoTranscurrido = Math.floor((ahora - inicio.getTime()) / 1000); // Diferencia en segundos
-                const tiempoRestante = duracionEnSegundos - tiempoTranscurrido;
-                
-                if (tiempoRestante <= 0) {
-                    
-                    // Enviar evento al cliente con tiempo restante 0 y estado terminado
-                    socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
-                    
-                    // Actualizar el campo "Estado" a "Cerrada" en la base de datos
-                    try {
+                try {
+                    // Verificar el estado de la pregunta
+                    const updatedQuestion = await QuestionModel.findOne({
+                        where: { id: preguntaId },
+                        attributes: ['Estado'],
+                    });
+    
+                    if (!updatedQuestion) {
+                        socket.emit('error', 'Pregunta no encontrada durante la verificación');
+                        clearInterval(interval);
+                        return;
+                    }
+    
+                    if (updatedQuestion.Estado === 'Cerrada') {
+                        // Detener el cronómetro si el estado es 'Cerrada'
+                        socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
+                        clearInterval(interval);
+                        return;
+                    }
+    
+                    // Calcular tiempo restante
+                    const ahora = Date.now();
+                    console.log('Tiempo actual:', ahora); // Tiempo actual
+                    const tiempoTranscurrido = Math.floor((ahora - inicio.getTime()) / 1000); // Diferencia en segundos
+                    const tiempoRestante = duracionEnSegundos - tiempoTranscurrido;
+    
+                    if (tiempoRestante <= 0) {
+                        // Enviar evento al cliente con tiempo restante 0 y estado terminado
+                        socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
+    
+                        // Actualizar el campo "Estado" a "Cerrada" en la base de datos
                         await QuestionModel.update(
-                            { Estado: "Cerrada" }, // Valor a actualizar
+                            { Estado: 'Cerrada' }, // Valor a actualizar
                             { where: { id: preguntaId } } // Condición para identificar la fila
                         );
-                        
-                    } catch (error) {
-                        console.error(`Error al actualizar el estado para pregunta ${preguntaId}:`, error);
+    
+                        clearInterval(interval); // Detener el cronómetro
+                    } else {
+                        // Enviar evento con el tiempo restante
+                        socket.emit('cronometro', { tiempoRestante, terminado: false });
+                        console.log('Tiempo restante:', tiempoRestante);
                     }
-                    
-                    clearInterval(interval); // Detener el cronómetro
-                    
-                } else { 
-                    // Enviar evento con el tiempo restante
-                    socket.emit('cronometro', { tiempoRestante, terminado: false });
-                    console.log('Tiempo restante:', tiempoTranscurrido); 
-                    console.log('Tiempo restante:', tiempoRestante);
-                    
+                } catch (error) {
+                    console.error('Error al verificar el estado de la pregunta:', error);
+                    socket.emit('error', 'Error durante la verificación del estado de la pregunta');
+                    clearInterval(interval); // Detener en caso de error
                 }
             }, 1000); // Actualizar cada segundo
-            
+    
             // Limpiar el intervalo si el cliente se desconecta
             socket.on('disconnect', () => {
                 clearInterval(interval);
-                 
             });
-     
-        } catch (error) { 
+        } catch (error) {
             console.error('Error en el cronómetro:', error);
             socket.emit('error', 'Error al iniciar el cronómetro');
         }
-    }); 
-
-
+    });
 
 
 
@@ -333,18 +351,18 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('DataQ', 'idpregunta:'+m);
     })  
 
-    socket.on('Asisten', (m) => {
-      
-      
-        socket.broadcast.emit('ASIST', 'cedula votante:'+m);
+    socket.on('Asistencia', (m) => {
+  
+        io.emit('ASIST', 'cedula votante:'+m);
     })
+    
   
     app.post('/api/votacion/estado', async (req, res) => {
         const { Estado, id } = req.body; 
         try {
             await CardModel.update({ Estado }, { where: { id } });
             res.status(200).json({ message: 'Estado actualizado correctamente' });
-            io.emit('iniciar', Estado);
+            socket.emit('iniciar', Estado);
         } catch (error) {
             console.error('Error al actualizar el estado:', error);
             res.status(500).json({ message: 'Error al actualizar el estado' });

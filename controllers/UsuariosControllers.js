@@ -63,7 +63,31 @@ exports.getUser = async (req, res) => {
         });
     }
 };
+exports.getUserPull = async (req, res) => {
+    try {
+        const user = await ModelUser.findOne({
+            where: { id: req.params.id }
+        });
 
+        if (!user) {
+            // Si no se encuentra ningún usuario, se retorna un JSON predeterminado
+            return res.json({
+                message: "No se encontró el usuario",
+                id_card: req.params.id_card,
+                data: null
+            });
+        }
+
+        // Si se encuentra el usuario, se retorna el resultado
+        res.json(user);
+    } catch (error) {
+        console.error("Hubo un error al traer el usuario:", error.message);
+        res.status(500).json({
+            message: "Error interno del servidor",
+            error: error.message
+        });
+    }
+};
 // Este método crea un registro
 exports.createUser = async (req, res) => {
     try {
@@ -80,16 +104,27 @@ exports.createUser = async (req, res) => {
 
 // Este método actualiza la información de un usuario
 exports.updateUser = async (req, res) => {
+    console.log(req.body);
     try {
-        await ModelUser.update(req.body, {
-            where: { Cedula: req.params.Cedula }
-        });
+        // Verificar si el usuario existe
+        const user = await ModelUser.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).json({
+                message: `Usuario con ID ${req.params.id} no encontrado`
+            });
+        }
+
+        // Actualizar la información del usuario
+        await user.update(req.body);
         res.json({
-            "message": "Se actualizó correctamente la información"
+            message: "Se actualizó correctamente la información",
+            data: user // Retorna los datos actualizados
         });
     } catch (error) {
-        res.json({
-            "message": error.message
+        console.error("Error al actualizar el usuario:", error.message);
+        res.status(500).json({
+            message: "Error interno del servidor",
+            error: error.message
         });
     }
 };
