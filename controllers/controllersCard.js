@@ -1,6 +1,7 @@
 const Cardmodel = require('../models/CardModel.js');
 const { Op } = require('sequelize');
-
+const jwt = require('jsonwebtoken');
+const ModelUser = require('../models/UsersModel');
 
 // Obtener todas las tarjetas
 exports.getAllCards = async (req, res) => {
@@ -99,6 +100,7 @@ exports.updateEstado = async (req, res) => {
 
 // Crear una nueva tarjeta
 exports.createCard = async (req, res) => {
+    console.log(req.body)
     try {
         // Validar los datos del cuerpo de la solicitud
         const { Title,Descripcion,UserId } = req.body;
@@ -132,6 +134,7 @@ exports.createCard = async (req, res) => {
         });
     }
 };
+
 // Eliminar una tarjeta por su ID
 exports.DeleteCard = async (req, res) => {
     try {
@@ -173,33 +176,55 @@ exports.getCardsByCedula = async (req, res) => {
         }
 
         // Decodificar el token
-        const decoded = jwt.verify(token, process.env.SECRET_KEY); // Asegúrate de usar tu clave secreta
-        const cedula = decoded.Cedula; // Ajusta el campo según el contenido de tu token
+        const decoded = jwt.verify(token, process.env.SECRET_KEY);
+        const Cedula = decoded.Cedula;
         const Cargo = decoded.Cargo;
-        const Id = decoded.id;   // Ajusta el campo si el token usa otro nombre para este dato
+        const Id = decoded.id;
 
-        if (!cedula || !Cargo) {
+        if (!Cedula || !Cargo) {
             return res.status(403).json({ message: 'Unauthorized: Cedula or Cargo not found in token' });
         }
 
-        // Consultar las cards en la base de datos usando la cédula
-        const cards = await Cardmodel.findAll({
-            where: { Id }
+        // Obtener el usuario autenticado desde ModelUser
+        const user = await ModelUser.findOne({ where: { id: Id } });
+
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no encontrado" });
+        }
+
+        const { id_card } = user;
+
+        // Buscar las asambleas (CardModel) usando UserId primero
+        let userAsambleas = await Cardmodel.findAll({ where: { UserId: Id } });
+
+        // Si no hay asambleas encontradas por UserId, buscar por id_card
+        let asambleasByIdCard = [];
+        if (id_card) {
+            asambleasByIdCard = await Cardmodel.findAll({ where: { id: id_card } });
+        }
+
+        // Combinar resultados sin duplicados
+        const combinedAsambleas = [...new Map([...userAsambleas, ...asambleasByIdCard].map(a => [a.id, a])).values()];
+
+        // Si no hay asambleas, responder con un mensaje vacío
+        if (combinedAsambleas.length === 0) {
+            return res.json({ message: 'No asambleas found for the user' });
+        }
+
+        // Responder con las asambleas encontradas y el cargo del usuario
+        res.json({
+            cards: combinedAsambleas,
+            Cargo
         });
 
-        // Responder con las cards y el cargo del usuario
-        res.json({
-            cards,
-            Cargo});
     } catch (error) {
-        console.error("Hubo un error al traer las cards por cédula:", error);
+        console.error("Hubo un error al traer las asambleas:", error);
         res.status(500).json({
             message: 'Internal server error',
             error: error.message
         });
     }
 };
-
 // Actualizar el estado de una tarjeta
 exports.updateCard = async (req, res) => { 
     try {               

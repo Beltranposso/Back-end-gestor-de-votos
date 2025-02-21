@@ -25,6 +25,7 @@ Usuarios.belongsTo(AsambleaModel, {
     as: 'asamblea'
 });
 
+
 // Relación: Preguntas -> Opciones
 QuestionsModel.hasMany(OptionsModel, {
     foreignKey: 'id_pregunta',

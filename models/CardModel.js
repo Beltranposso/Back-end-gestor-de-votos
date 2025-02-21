@@ -10,7 +10,7 @@ const Asamblea = db.define('asambleas', {
     Title: { type: DataTypes.STRING }, // Si el título es obligatorio
     Color: { type: DataTypes.STRING },
     link: { type: DataTypes.STRING },
-    UserId: { type: DataTypes.INTEGER },
+    UserId: { type: DataTypes.STRING },
     Estado: { type: DataTypes.ENUM('Programada', 'Activa', 'Finalizada') },
     horaInicio: { type: DataTypes.STRING },
     horaExpiracion: { type: DataTypes.STRING },

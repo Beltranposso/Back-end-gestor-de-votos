@@ -58,6 +58,9 @@ const Tabla = db.define('usuarios', {
     esApoderado: {
         type: DataTypes.ENUM('No', 'Si')
     }
+    ,Apoderados:{
+        type: DataTypes.JSON
+    }
 }, {
     hooks: {
         beforeCreate: (user) => {

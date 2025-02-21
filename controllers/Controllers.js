@@ -1,5 +1,5 @@
 const Usermodel = require('../models/UsersModel.js');
-
+const cache = require('memory-cache');
 const jwt = require('jsonwebtoken'); 
 
 // const dotenv = require('dotenv'); // Si es necesario, puedes descomentar esta línea
@@ -48,22 +48,40 @@ exports.getUser = async (req, res) => {
 };
 
 
-
 exports.getUserONE = async (req, res) => {
     console.log(req.params.id);
     try {
+        const userId = req.params.id;
+        const cacheKey = `user_${userId}`;  // Clave única para este usuario
+
+        // 1. Intentamos obtener el usuario desde el caché
+        const cachedUser = cache.get(cacheKey);
+
+        if (cachedUser) {
+            // Si encontramos el usuario en caché, lo retornamos
+            console.log("Datos obtenidos desde el caché");
+            return res.json(cachedUser);
+        }
+
+        // 2. Si no está en caché, lo obtenemos de la base de datos
         const user = await Usermodel.findOne({
-            where: { id: req.params.id }
+            where: { id: userId }
         });
 
         if (!user) {
             return res.json({
                 message: "Usuario no encontrado",
-                id: req.params.id
+                id: userId
             });
         }
 
+        // 3. Guardamos los datos en caché por 10 minutos (600000 ms)
+        cache.put(cacheKey, user, 600000);  // 10 minutos de caché
+        console.log("Datos obtenidos de la base de datos");
+
+        // 4. Retornamos el usuario
         res.json(user);
+
     } catch (error) {
         console.log("Hubo un error al buscar el usuario");
         res.json({
@@ -71,7 +89,6 @@ exports.getUserONE = async (req, res) => {
         });
     }
 };
-
 
 
 exports.getUserOperador = async (req, res) => {
@@ -207,7 +224,7 @@ exports.updateUser = async (req, res) => {
     }
 };
 
-// Este método elimina a un usuario
+// Este método elimina a un usuario 
 exports.DeleteUser = async (req, res) => {
     try {
         await Usermodel.destroy({
@@ -218,9 +235,7 @@ exports.DeleteUser = async (req, res) => {
             "message": error.message
         }); 
     }
-};
-
-exports.SetAsistencia = async (req, res) => {
+};exports.SetAsistencia = async (req, res) => {
     try {
         // Obtener la cédula desde los parámetros de la solicitud
         const cedula = req.params.Cedula;
@@ -242,18 +257,23 @@ exports.SetAsistencia = async (req, res) => {
             });
         }
 
-        // Actualizar solo el campo Asistencia del usuario encontrado
+        // Determinar el nuevo valor para el campo "Asistencia"
+        let nuevaAsistencia;
+        if (user.Asistencia === "Presente") {
+            nuevaAsistencia = "Ausente"; // Cambiar de "Presente" a "Ausente"
+        } else {
+            nuevaAsistencia = "Presente"; // Cambiar de "Ausente" o null a "Presente"
+        }
+
+        // Actualizar el campo "Asistencia" del usuario encontrado
         await Usermodel.update(
-            { Asistencia: "Presente" }, // Datos a actualizar
+            { Asistencia: nuevaAsistencia }, // Datos a actualizar
             { where: { Cedula: cedula } } // Condición de búsqueda
         );
 
-        // Opcional: Buscar nuevamente al usuario actualizado para confirmarlo
-        const updatedUser = await Usermodel.findOne({ where: { Cedula: cedula } });
-
-        // Enviar respuesta con el usuario actualizado
+        // Enviar respuesta con el nuevo estado de la asistencia
         res.json({
-            message: "La asistencia del Operador se actualizó correctamente."
+            message: `La asistencia del Operador se actualizó correctamente a "${nuevaAsistencia}".`,
         });
     } catch (error) {
         console.log("Hubo un error al actualizar la asistencia del usuario:", error.message);
@@ -262,8 +282,7 @@ exports.SetAsistencia = async (req, res) => {
         });
     }
 };
-
-
+ 
 
 exports.getColumnByCedula = async (req, res) => {
     try {

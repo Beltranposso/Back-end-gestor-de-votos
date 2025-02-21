@@ -36,7 +36,9 @@ const server = http.createServer(app);
 const io = new SocketServer(server, {
     cors: {
         origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"], // Corregido "http//:" a "http://"
-    }
+    },
+    perMessageDeflate: true,
+    transports: ['websocket']
 }); 
 
 
@@ -129,10 +131,10 @@ app.post('/login', async (req, res) => {
         return res.status(200).json({
             message: 'Inicio de sesión exitoso',
             usuario: {
-                id: user.id,
+                id: user.id, 
                 Cedula: user.Cedula,
                 Nombre: user.Nombre,
-                Cargo: userCargo
+                Cargo: userCargo 
             }
         });
     } catch (error) {
@@ -302,7 +304,7 @@ io.on('connection', (socket) => {
                         socket.emit('cronometro', { tiempoRestante: 0, terminado: true });
                         clearInterval(interval);
                         return;
-                    }
+                    }  
     
                     // Calcular tiempo restante
                     const ahora = Date.now();
@@ -362,7 +364,7 @@ io.on('connection', (socket) => {
         try {
             await CardModel.update({ Estado }, { where: { id } });
             res.status(200).json({ message: 'Estado actualizado correctamente' });
-            socket.emit('iniciar', Estado);
+            io.emit('iniciar', Estado);
         } catch (error) {
             console.error('Error al actualizar el estado:', error);
             res.status(500).json({ message: 'Error al actualizar el estado' });
@@ -585,87 +587,99 @@ app.get('/DataAutenticathed', (req, res) => {
 
 
 
+ //FUNCION A ARREGLAR  
+
+  // ***********************************************************
+  // *********************** ARREGLAR ESTA FUNCION **********************
+  // ***********************************************************
+  //                     
+  //                   
+  app.post('/Check-user-token', async (req, res) => {
+    
+      try {
+          // Obtener el token de las cookies
+          const token = req.cookies.Token;
+          console.log('Token recibidodddfkjshdflkjahsdlkfjhalskdjflasdjflka:', token);  // Log para verificar que el token está siendo enviado
   
+          // Verificar si el token existe
+          if (!token) {
+              return res.status(400).json({
+                  message: "No se encontró el token en las cookies.",
+                  success: false
+              });
+          }
   
-app.post('/Check-user-token', async (req, res) => {
-    try {
-        // Obtener el token de las cookies
-        const token = req.cookies.Token;
-        console.log('Token recibido:', token);  // Log para verificar que el token está siendo enviado
+          // Decodificar el token
+          const decoded = jwt.verify(token, process.env.SECRET_KEY);
+  
+          // Obtener la cédula desde el token decodificado
+          const { Cedula } = decoded;
+          console.log('Cédula decodificada:', Cedula); // Log para verificar la cédula
+  
+          // Verificar si la cédula está presente
+          if (!Cedula) {
+              return res.status(400).json({
+                  message: "Cédula no encontrada en el token.",
+                  success: false
+              });
+          }
+  
+          // Obtener el id_card desde el body de la solicitud
+          const { id_card } = req.body; // Asegúrate de que el cliente envíe este dato en el cuerpo de la solicitud
+          console.log('id_card recibido del body:', id_card); // Log para verificar el id_card recibido
+  
+          // Verificar si el id_card está presente
+          if (!id_card) {
+              return res.status(400).json({
+                  message: "ID de la tarjeta no proporcionado.",
+                  success: false
+              });
+          }
+  
+          // Convertir la cédula a tipo entero si no lo es
+          const cedulaInt = parseInt(Cedula, 10); // Asegúrate de usar base 10 al convertir a entero
+          console.log('Cédula convertida:', cedulaInt);
+  
+          // Verificar si la conversión fue exitosa
+          if (isNaN(cedulaInt)) {
+              return res.status(400).json({
+                  message: "La cédula no es válida.",
+                  success: false
+              });
+          }
+  
+          // Verificar si el usuario está registrado bajo el id_card
+          const user = await ModelUser.findOne({
+              where: { Cedula: cedulaInt, id_card }
+          });
+  
+          if (!user) {
+              return res.json({
+                  message: "No estás registrado en esta Asamblea.",
+                  success: false
+              });
+          }
+  
+          // Si el usuario está registrado
+          return res.json({
+              message: "El usuario está registrado en esta Asamblea.",
+              success: true
+          });
+  
+      } catch (error) {
+          console.error("Error en el servidor:", error); // Log para detalles del error
+          res.status(500).json({
+              message: "Error interno del servidor.",
+              error: error.message
+          });
+      }
+  });
+  //                    
+  //                    
+  //                   
+  // ***********************************************************
+  // ***********************************************************
 
-        // Verificar si el token existe
-        if (!token) {
-            return res.status(400).json({
-                message: "No se encontró el token en las cookies.",
-                success: false
-            });
-        }
-
-        // Decodificar el token
-        const decoded = jwt.verify(token, process.env.SECRET_KEY);
-
-        // Obtener la cédula desde el token decodificado
-        const { Cedula } = decoded;
-        console.log('Cédula decodificada:', Cedula); // Log para verificar la cédula
-
-        // Verificar si la cédula está presente
-        if (!Cedula) {
-            return res.status(400).json({
-                message: "Cédula no encontrada en el token.",
-                success: false
-            });
-        }
-
-        // Obtener el id_card desde el body de la solicitud
-        const { id_card } = req.body; // Asegúrate de que el cliente envíe este dato en el cuerpo de la solicitud
-        console.log('id_card recibido del body:', id_card); // Log para verificar el id_card recibido
-
-        // Verificar si el id_card está presente
-        if (!id_card) {
-            return res.status(400).json({
-                message: "ID de la tarjeta no proporcionado.",
-                success: false
-            });
-        }
-
-        // Convertir la cédula a tipo entero si no lo es
-        const cedulaInt = parseInt(Cedula, 10); // Asegúrate de usar base 10 al convertir a entero
-        console.log('Cédula convertida:', cedulaInt);
-
-        // Verificar si la conversión fue exitosa
-        if (isNaN(cedulaInt)) {
-            return res.status(400).json({
-                message: "La cédula no es válida.",
-                success: false
-            });
-        }
-
-        // Verificar si el usuario está registrado bajo el id_card
-        const user = await ModelUser.findOne({
-            where: { Cedula: cedulaInt, id_card }
-        });
-
-        if (!user) {
-            return res.json({
-                message: "No estás registrado en esta Asamblea.",
-                success: false
-            });
-        }
-
-        // Si el usuario está registrado
-        return res.json({
-            message: "El usuario está registrado en esta Asamblea.",
-            success: true
-        });
-
-    } catch (error) {
-        console.error("Error en el servidor:", error); // Log para detalles del error
-        res.status(500).json({
-            message: "Error interno del servidor.",
-            error: error.message
-        });
-    }
-});
 
 
 app.post('/Check-user-vote', async (req, res) => {

@@ -257,7 +257,92 @@ exports.obtenerResultadosPorCard = async (req, res) => {
 };
 
 
+exports.obtenerResultadosPorCardxCoeficiente = async (req, res) => {
+    try {
+        const idCard = req.params.idCard;  // Obtenemos el id_card desde los parámetros de la URL
 
+        // Paso 1: Obtener todas las preguntas relacionadas con el id_card
+        const preguntas = await QuestionsModel.findAll({
+            where: { id_card: idCard },  
+        });
+
+        if (!preguntas || preguntas.length === 0) {
+            return res.status(404).json({ message: 'No se encontraron preguntas para este id_card' });
+        }
+
+        // Paso 2: Preparar el resultado para cada pregunta
+        const resultados = [];
+
+        for (const pregunta of preguntas) {
+            // Obtener todas las opciones de la pregunta
+            const opciones = await OptionsModel.findAll({
+                where: { id_pregunta: pregunta.id },
+            });
+
+            // Obtener todos los votos de la pregunta
+            const votos = await Votos.findAll({
+                where: { id_question: pregunta.id },
+            });
+
+            // Obtener los quorums de los usuarios que votaron
+            const usuariosQueVotaron = await ModelUser.findAll({
+                where: { Cedula: votos.map(voto => voto.id_voter) },  // Filtramos solo los usuarios que votaron
+                attributes: ['Cedula', 'quorum'],  // Solo necesitamos el id y el quorum
+            });
+
+            // Crear un mapa de quorums por usuario para facilitar el acceso
+            const quorumPorUsuario = {};
+            usuariosQueVotaron.forEach(usuario => {
+                quorumPorUsuario[usuario.Cedula] = usuario.quorum;
+            });
+
+            // Calcular el total de quorum sumando los quorums de todos los usuarios que votaron
+            const totalQuorum = votos.reduce((acc, voto) => acc + (quorumPorUsuario[voto.id_voter] || 0), 0);
+
+            // Paso 3: Obtener la suma de quorums por opción
+            const quorumsPorOpcion = {};
+            opciones.forEach(opcion => {
+                quorumsPorOpcion[opcion.opcion] = 0;  // Inicializamos el quorum por opción en 0
+            });
+
+            votos.forEach(voto => {
+                const opcionSeleccionada = voto.voto;
+                const quorumUsuario = quorumPorUsuario[voto.id_voter] || 0;
+
+                if (quorumsPorOpcion[opcionSeleccionada] !== undefined) {
+                    quorumsPorOpcion[opcionSeleccionada] += quorumUsuario;
+                }
+            });
+
+            // Paso 4: Calcular los porcentajes basados en el quorum total
+            const porcentajes = {};
+            opciones.forEach(opcion => {
+                const quorumOpcion = quorumsPorOpcion[opcion.opcion];
+                const porcentaje = totalQuorum > 0 ? (quorumOpcion / totalQuorum) * 100 : 0;
+                porcentajes[opcion.opcion] = porcentaje.toFixed(2);
+            });
+
+            // Paso 5: Almacenar el desglose de cada pregunta
+            resultados.push({
+                pregunta: pregunta.Pregunta,
+                totalVotos: votos.length,
+                totalquorum: totalQuorum.toFixed(4),  // Redondear a 4 decimales
+                opciones: opciones.map(opcion => ({
+                    opcion: opcion.opcion,
+                    votos: quorumsPorOpcion[opcion.opcion].toFixed(4),  // Mostrar quorum sumado por opción
+                    porcentaje: porcentajes[opcion.opcion],  // Basado en quorum
+                })),
+            });
+        }
+
+        // Paso 6: Devolver el desglose de todos los resultados
+        res.json({ resultados });
+
+    } catch (error) {
+        console.error('Error al obtener los resultados de votación:', error);
+        res.status(500).json({ message: 'Error en la obtención de resultados', error: error.message });
+    }
+};
 
 exports.getOpcionesConQuorumByPregunta = async (req, res) => {
     try {
@@ -385,3 +470,67 @@ exports.getProcessedDataByPregunta = async (req, res) => {
     }
 };
 
+
+
+
+exports.getProcessedDataLengthByPregunta = async (req, res) => {
+    try {
+        const { id_card, IdPregunta } = req.params; // Asumimos que los parámetros son id_card y IdPregunta
+
+        // Validar que IdPregunta esté presente
+        if (!IdPregunta) {
+            return res.status(400).json({ message: "IdPregunta es requerido en el cuerpo de la solicitud" });
+        }
+
+        console.log("id card", id_card);
+        console.log("id pregunta", IdPregunta);
+
+        // Obtener la pregunta específica con el IdPregunta
+        const pregunta = await QuestionsModel.findOne({
+            where: { id: IdPregunta, id_card }, // Filtrar por IdPregunta y id_card
+            include: [
+                {
+                    model: OptionsModel,
+                    as: 'opciones',
+                    include: [
+                        {
+                            model: Votos,
+                            as: 'votos',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        if (!pregunta) {
+            return res.status(404).json({ message: "Pregunta no encontrada" });
+        }
+
+        // Arreglos para almacenar las opciones y el número de votos por opción
+        const opciones = [];
+        const votos = [];
+
+        // Procesar las opciones y contar los votos
+        pregunta.opciones.forEach((opcion) => {
+            // Contar el número de votos para cada opción
+            const numeroDeVotos = opcion.votos.length;
+
+            // Agregar la opción y el número de votos a los arreglos
+            opciones.push(opcion.opcion);
+            votos.push(numeroDeVotos);
+        });
+
+        // Crear el resultado en el formato solicitado
+        const result = {
+            id_pregunta: pregunta.id,
+            texto_pregunta: pregunta.Pregunta,
+            opciones: opciones,
+            Votos: votos,
+        };
+
+        res.json(result);
+    } catch (error) {
+        console.error("Hubo un error al procesar los datos:", error);
+        res.status(500).json({ message: error.message });
+    }
+};

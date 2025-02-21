@@ -3,6 +3,7 @@ const VotesModel = require('../models/VotosMode.js');
 const { Sequelize } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const crypto = require("crypto");
+const client =require( '../redis/redisClient.js');
 const { QuestionsModel, OptionsModel, Votos, UsuariosDefinitive } = require('../models/asociations.js');
  
 
@@ -25,12 +26,21 @@ exports.getAllUsers = async (req, res) => {
 };
 exports.getAllUsersCounter = async (req, res) => {
     try {
-        const Users = await ModelUser.findAll();
-        res.status(200).json({ count: Users.length });
+        const { id_card } = req.params; // Obtener id_card de los parámetros de la URL
+        const users = await ModelUser.findAll({
+            where: { id_card } // Filtro por id_card
+        });
+        
+        // Responder con los usuarios encontrados
+        res.status(200).json({ 
+            count: users.length,
+            users 
+        });
     } catch (error) {
-        console.log("Hubo un error al traer los usuarios");
-        res.json({
-            "message": error.message
+        console.error("Hubo un error al traer los usuarios por id_card:", error);
+        res.status(500).json({
+            message: "Hubo un error al traer los usuarios",
+            error: error.message
         });
     }
 };
@@ -63,14 +73,28 @@ exports.getUser = async (req, res) => {
         });
     }
 };
+
 exports.getUserPull = async (req, res) => {
     try {
+        const userId = req.params.id;
+        const cacheKey = `user_${userId}`;  // Definimos la clave para almacenar en caché
+
+        // 1. Intentamos obtener el usuario del caché
+        const cachedUser = cache.get(cacheKey);
+
+        if (cachedUser) {
+            // Si hay un caché, retornamos los datos desde allí
+            console.log("Datos obtenidos desde el caché");
+            return res.json(cachedUser);
+        }
+
+        // 2. Si no está en caché, lo obtenemos de la base de datos
         const user = await ModelUser.findOne({
-            where: { id: req.params.id }
+            where: { id: userId }
         });
 
         if (!user) {
-            // Si no se encuentra ningún usuario, se retorna un JSON predeterminado
+            // Si no se encuentra ningún usuario, retornamos un mensaje predeterminado
             return res.json({
                 message: "No se encontró el usuario",
                 id_card: req.params.id_card,
@@ -78,8 +102,13 @@ exports.getUserPull = async (req, res) => {
             });
         }
 
-        // Si se encuentra el usuario, se retorna el resultado
+        // 3. Guardamos los datos en caché por 10 minutos
+        cache.put(cacheKey, user, 600000); // 600000 ms = 10 minutos
+
+        console.log("Datos obtenidos de la base de datos");
+        // 4. Retornamos el usuario
         res.json(user);
+
     } catch (error) {
         console.error("Hubo un error al traer el usuario:", error.message);
         res.status(500).json({
@@ -88,6 +117,9 @@ exports.getUserPull = async (req, res) => {
         });
     }
 };
+
+
+
 // Este método crea un registro
 exports.createUser = async (req, res) => {
     try {
@@ -160,7 +192,8 @@ exports.getVotosByCardIdAndEstado = async (req, res) => {
         const votos = await ModelUser.findAll({
             where: {
                 id_card: req.params.id_card, // Filtra por id_card
-                EstadoVoto: "No"            // Solo donde EstadoVoto sea "No"
+                EstadoVoto: "No",
+                esRepresentado: "No"         
             }
         });
         res.json(votos);
@@ -170,6 +203,8 @@ exports.getVotosByCardIdAndEstado = async (req, res) => {
         });
     }
 };
+
+
 
 exports.SetAsistencia = async (req, res) => {
     try {
@@ -186,7 +221,7 @@ exports.SetAsistencia = async (req, res) => {
 
         // Buscar el usuario en la base de datos por la cédula
         const user = await ModelUser.findOne({ where: { Cedula: cedula } });
- 
+
         // Verificar si el usuario existe
         if (!user) {
             return res.status(404).json({
@@ -205,22 +240,44 @@ exports.SetAsistencia = async (req, res) => {
             second: "2-digit",
         });
 
-        // Actualizar los campos Asistencia y HoraDellegada según el estado recibido
+        // Actualizar la asistencia del usuario principal
         await ModelUser.update(
             { 
-                Asistencia: asistencia, // Asistencia recibida del cliente
-                HoraDellegada: asistencia === "Presente" ? fechaHoraActual : null // Solo asignar la hora si está presente
+                Asistencia: asistencia,
+                HoraDellegada: asistencia === "Presente" ? fechaHoraActual : null 
             }, 
             { where: { Cedula: cedula } }
         );
 
-        // Opcional: Buscar nuevamente al usuario actualizado para confirmarlo
+        // Si el usuario tiene apoderados, actualizar su asistencia también
+        if (user.Apoderados) {
+            try {
+                const apoderados = JSON.parse(user.Apoderados); // Convertir de string a JSON
+                
+                if (Array.isArray(apoderados) && apoderados.length > 0) {
+                    // Extraer las cédulas de los apoderados
+                    const cedulasApoderados = apoderados.map(apoderado => apoderado.id);
+
+                    // Actualizar la asistencia de todos los apoderados
+                    await ModelUser.update(
+                        { 
+                            Asistencia: asistencia // Sincronizar la asistencia de los apoderados con la del usuario principal
+                        },
+                        { where: { id: cedulasApoderados } }
+                    );
+                }
+            } catch (error) {
+                console.error("Error al procesar los apoderados:", error);
+            }
+        }
+
+        // Buscar nuevamente al usuario actualizado para confirmarlo
         const updatedUser = await ModelUser.findOne({ where: { Cedula: cedula } });
 
         // Enviar respuesta con el usuario actualizado
         res.json({
-            message: "La asistencia del usuario y su hora de llegada se actualizaron correctamente.",
-            usuario: updatedUser // Incluye la información actualizada del usuario
+            message: "La asistencia del usuario y de sus apoderados se actualizó correctamente.",
+            usuario: updatedUser
         });
     } catch (error) {
         console.log("Hubo un error al actualizar la asistencia del usuario:", error.message);
@@ -229,8 +286,6 @@ exports.SetAsistencia = async (req, res) => {
         });
     }
 };
-
-
  
 
 exports.verifyUserByCedula = async (req, res) => {
@@ -290,109 +345,131 @@ exports.verifyUserByCedula = async (req, res) => {
 
  exports.checkVotingStatusByIdCard = async (req, res) => {
     try {
-        const { Cedula } = req.body; // Obtener la cédula del cuerpo de la solicitud
-        const idCard = req.params.id_card; // Obtener el id_card desde los parámetros de la ruta
+        const { Cedula } = req.body;
+        const idCard = req.params.id_card;
 
-        // Verificar si la cédula y el id_card están presentes
         if (!Cedula) {
-            return res.status(400).json({
-                message: "Cédula no proporcionada.",
-                success: false
-            });
+            return res.status(400).json({ message: "Cédula no proporcionada.", success: false });
         }
 
         if (!idCard) {
-            return res.status(400).json({
-                message: "ID de la tarjeta (id_card) no proporcionado.",
-                success: false
+            return res.status(400).json({ message: "ID de la tarjeta (id_card) no proporcionado.", success: false });
+        }
+
+        // Verificar si el token existe en Redis
+        const token = req.cookies.Token;
+        if (token) {
+            const cachedData = await client.get(`token:${token}`);
+            if (!cachedData) {
+                // Si el token no existe en Redis, elimina la cookie
+                res.clearCookie('Token', {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    path: '/'
+                });
+                return res.status(401).json({ message: "Token no válido o expirado.", success: false });
+            }
+        }
+
+        // 🔹 Verificar si los datos ya están en Redis
+        const cachedData = await client.get(`userData:${Cedula}:${idCard}`);
+        if (cachedData) {
+            return res.json({
+                message: "Datos obtenidos desde caché.",
+                success: true,
+                data: JSON.parse(cachedData)
             });
         }
 
-        // Verificar si el usuario está registrado bajo el id_card
+        // 🔹 Consultar la base de datos solo si los datos no están en caché
         const user = await ModelUser.findOne({
             where: { Cedula, id_card: idCard },
-            attributes: ['Nombre', 'Apellido', 'quorum', 'RegisterQuorum', 'PoderesDelegados'] // Extraer solo los campos necesarios
+            attributes: ['Nombre', 'Apellido', 'quorum', 'RegisterQuorum', 'PoderesDelegados', 'esRepresentado'] // Agregar 'esRepresentado'
         });
 
         if (!user) {
+            return res.json({ message: "No estás registrado en esta Asamblea.", success: false });
+        }
+
+        // 🔹 Extraer los datos del usuario
+        const { Nombre, Apellido, quorum, RegisterQuorum, PoderesDelegados, esRepresentado } = user;
+        const userData = { Cedula, idCard, NombreCompleto: `${Nombre} ${Apellido}`, quorum, RegisterQuorum, PoderesDelegados };
+
+        // 🔹 Verificar si el usuario es representado
+        if (esRepresentado === "P") {
             return res.json({
-                message: "No estás registrado en esta Asamblea.",
-                success: false
+                message: "El usuario es representado y no requiere un token."
             });
         }
 
-        // Extraer los datos adicionales desde la base de datos
-        const { Nombre, Apellido, quorum, RegisterQuorum, PoderesDelegados } = user;
+        // 🔹 Generar el token solo si el usuario no es representado
+        const newToken = jwt.sign(userData, process.env.SECRET_KEY, { expiresIn: '1d' });
+        console.log('Token generado:', newToken);
 
-        // Si el usuario está registrado, generar un token con los datos solicitados
-        const token = jwt.sign(
-            {
-                Cedula,
-                id_card: idCard,
-                NombreCompleto: `${Nombre} ${Apellido}`, // Combinar Nombre y Apellido
-                quorum,
-                RegisterQuorum,
-                PoderesDelegados
-            },
-            process.env.SECRET_KEY,
-            {
-                expiresIn: '1d' // Token válido por 1 día
-            }
-        );
+        // 🔹 Guardar los datos en Redis (expiración 1 día)
+        await client.setEx(`token:${newToken}`, 86400, JSON.stringify(userData));
+        console.log('Datos guardados en Redis:', userData); 
 
-        // Establecer el token en las cookies
-        res.cookie('Token', token, {
-            httpOnly: true, // Evita acceso desde JavaScript en el cliente
-            secure: false, // Usar true en producción con HTTPS
+        // 🔹 Establecer la cookie con el token
+        res.cookie('Token', newToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // Cambia a true en producción
             maxAge: 24 * 60 * 60 * 1000, // 1 día en milisegundos
-            sameSite: 'lax', // Configurar 'strict' o 'lax' según necesidades
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/'
         });
 
         return res.json({
-            message: "Usuario registrado. Token generado.",
+            message: "Usuario registrado. Token generado y datos almacenados en caché.",
             success: true,
-            token
+            token: newToken
         });
 
     } catch (error) {
         console.error("Error al verificar el estado de votación:", error.message);
-        res.status(500).json({
-            message: "Error interno del servidor.",
-            error: error.message
-        });
+        res.status(500).json({ message: "Error interno del servidor.", error: error.message });
     }
 };
 
-
-
-exports.decodeToken = (req, res) => {
+exports.decodeToken = async (req, res) => { 
     try {
-        // Obtener el token de las cookies
         const token = req.cookies.Token;
 
-        // Verificar si el token existe
         if (!token) {
             return res.status(400).json({
                 message: "Token no proporcionado.",
                 success: false
             });
         }
+console.log("token deodificado:",token)
+        // 🔹 Verificar si el token está en Redis
+        const cachedUserData = await client.get(`token:${token}`);
+        if (cachedUserData) {
+            return res.json({
+                message: "Token encontrado en caché.",
+                success: true,
+                userData: JSON.parse(cachedUserData) // Convertir a objeto
+            });
+        }
 
-        // Decodificar el token usando la clave secreta
+        // 🔹 Si no está en Redis, decodificarlo
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
 
-        // Enviar los datos decodificados en la respuesta
+        // 🔹 Guardar los datos decodificados en Redis con expiración (1 día)
+        await client.setEx(`token:${token}`, 86400, JSON.stringify(decoded));
+
         return res.json({
             message: "Token decodificado exitosamente.",
             success: true,
-            data: decoded
+            userData: decoded
         });
+
     } catch (error) {
         console.error("Error al decodificar el token:", error.message);
 
-        // Verificar si el error es de expiración del token
         if (error.name === 'TokenExpiredError') {
+            // 🔹 Si el token expiró, eliminarlo de Redis y responder con error
+            await client.del(`token:${req.cookies.Token}`);
             return res.status(401).json({
                 message: "El token ha expirado.",
                 success: false
@@ -407,6 +484,7 @@ exports.decodeToken = (req, res) => {
 };
 
 
+
 exports.checkVotingStatusFromToken = async (req, res) => {
     try {
         // Obtener el token de las cookies
@@ -419,7 +497,7 @@ exports.checkVotingStatusFromToken = async (req, res) => {
                 success: false
             });
         }
-
+ 
         // Decodificar el token
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
 
@@ -574,7 +652,7 @@ exports.getAsistencia = async (req, res) => {
 
 exports.calcularQuorumTotal = async (req, res) => {
     const { idCard } = req.params;
-    console.log(`ID de tarjeta recibido:dddddddddddddddddd ${idCard}`);
+
     try {
         // Validar que idCard no esté vacío
         if (!idCard) {
@@ -583,141 +661,121 @@ exports.calcularQuorumTotal = async (req, res) => {
             });
         }
 
-        // Obtener todos los usuarios presentes con el id_card especificado
+        // Obtener todos los usuarios presentes con el filtro 'Asistencia: Presente'
         const usuariosPresentes = await ModelUser.findAll({
             where: {
                 Asistencia: 'Presente',
                 id_card: idCard
             },
-            attributes: ['Nombre', 'Cedula', 'quorum']
+            attributes: ['Nombre', 'Cedula', 'quorum', 'esRepresentado']
         });
 
-        // Obtener todos los usuarios registrados con el id_card (sin filtrar por presencia)
+        // Obtener todos los usuarios registrados para la asamblea
         const usuariosRegistrados = await ModelUser.findAll({
             where: { id_card: idCard },
-            attributes: ['Nombre', 'Cedula', 'Asistencia', 'quorum']
+            attributes: ['id']
         });
 
+        // Contar el total de usuarios registrados
         const totalUsuariosRegistrados = usuariosRegistrados.length;
 
-        // Si no hay usuarios presentes
-        if (usuariosPresentes.length === 0) {
-            console.log(`No hay usuarios presentes con id_card ${idCard}`);
-            return res.status(200).json({
-                message: `No hay usuarios presentes. Se muestran todos los usuarios registrados para id_card ${idCard}`,
-                quorumTotal: 0,
-                numeroUsuariosPresentes: 0,
-                totalUsuariosRegistrados,
-                usuariosRegistrados: usuariosRegistrados.map(usuario => ({
-                    nombre: usuario.Nombre,
-                    cedula: usuario.Cedula,
-                    asistencia: usuario.Asistencia,
-                    quorum: usuario.quorum
-                }))
-            });
-        }
+        // Filtrar los usuarios presentes donde 'esRepresentado' sea 'No'
+        const usuariosFiltrados = usuariosPresentes.filter(
+            usuario => usuario.esRepresentado === 'No'
+        );
 
-        // Calcular la suma del quorum de los usuarios presentes
-        const quorumTotal = usuariosPresentes.reduce((acc, usuario) => {
+        // Calcular el quórum total solo de los usuarios filtrados
+        const quorumTotal = usuariosFiltrados.reduce((acc, usuario) => {
             const quorum = parseFloat(usuario.quorum) || 0;
             return acc + quorum;
         }, 0);
 
-        // Número de usuarios presentes
+        // Número total de usuarios presentes
         const numeroUsuariosPresentes = usuariosPresentes.length;
 
-        // Detalles de usuarios presentes
-        const detallesUsuariosPresentes = usuariosPresentes.map(usuario => ({
-            nombre: usuario.Nombre,
-            cedula: usuario.Cedula,
-            quorum: usuario.quorum
-        }));
-
-        // Limitar el quorum total a 2 decimales
+        // Limitar el quórum total a 6 decimales
         const quorumTo = parseFloat(quorumTotal.toFixed(6));
 
         console.log(`Quorum total de la asamblea para id_card ${idCard}: ${quorumTo}`);
+        console.log(`Número total de usuarios presentes: ${numeroUsuariosPresentes}`);
+        console.log(`Número total de usuarios registrados: ${totalUsuariosRegistrados}`);
 
         // Responder con los datos calculados
         return res.status(200).json({
-            message: `Quorum total para el id_card ${idCard}`,
+            message: `Cálculo de quórum para id_card ${idCard}`,
             quorumTotal: quorumTo,
             numeroUsuariosPresentes,
             totalUsuariosRegistrados,
-            usuariosPresentes: detallesUsuariosPresentes,
-            usuariosRegistrados: usuariosRegistrados.map(usuario => ({
+            usuariosFiltrados: usuariosFiltrados.map(usuario => ({
                 nombre: usuario.Nombre,
                 cedula: usuario.Cedula,
-                asistencia: usuario.Asistencia,
                 quorum: usuario.quorum
+            })),
+            usuariosPresentes: usuariosPresentes.map(usuario => ({
+                nombre: usuario.Nombre,
+                cedula: usuario.Cedula,
+                quorum: usuario.quorum,
+                esRepresentado: usuario.esRepresentado
             }))
-        }); 
+        });
 
     } catch (error) {
-        console.error("Error al calcular el quorum total: ", error);
+        console.error("Error al calcular el quórum total: ", error);
         return res.status(500).json({
-            error: 'Hubo un error al calcular el quorum',
+            error: 'Hubo un error al calcular el quórum',
             detalles: error.message
         });
     }
 };
 
 
-
-
-
-
 exports.getUsuariosPresentesByPDF = async (req, res) => {
     try {
         const id_card = req.params.id_card;
 
-        // Verificar que se recibió el id_card
         if (!id_card) {
             return res.status(400).json({
                 message: "El id_card es obligatorio.",
             });
         }
 
-        // Buscar usuarios con el id_card y que estén presentes
         const usuariosPresentes = await ModelUser.findAll({
             where: {
-                id_card: id_card, // Filtrar por id_card
-                Asistencia: "Presente", // Filtrar por usuarios presentes
+                id_card: id_card,
+                Asistencia: "Presente",
             },
             attributes: [
-                "Nombre", // Campos necesarios para construir el nombre completo
+                "Nombre",
                 "Apellido",
                 "Cedula",
                 "Asistencia",
                 "quorum",
                 "Representante",
                 "HoraDellegada",
+                "esRepresentado", // Incluir el nuevo campo
             ],
         });
 
-        // Verificar si se encontraron usuarios
         if (usuariosPresentes.length === 0) {
             return res.status(404).json({
                 message: "No se encontraron usuarios presentes con ese id_card.",
             });
         }
 
-        // Crear una lista con los nombres completos y demás datos
+        // Transformar los datos con la nueva lógica para "Asistencia"
         const usuariosConNombreCompleto = usuariosPresentes.map(usuario => ({
-            NombreCompleto: `${usuario.Nombre} ${usuario.Apellido}`, // Combinar nombre y apellido
+            NombreCompleto: `${usuario.Nombre} ${usuario.Apellido}`,
             Cedula: usuario.Cedula,
-            Asistencia: usuario.Asistencia,
+            Asistencia: usuario.esRepresentado === "P" ? "P" : "Presente", // Nueva condición
             quorum: usuario.quorum,
             HoraDellegada: usuario.HoraDellegada,
             Representante: usuario.Representante,
         }));
 
-        // Calcular el quórum total
         const quorumsTotales = usuariosPresentes.reduce((total, usuario) => {
-            return total + (parseFloat(usuario.quorum) || 0); // Sumar quórum, asegurándose de manejar valores no numéricos
+            return total + (parseFloat(usuario.quorum) || 0);
         }, 0);
 
-        // Enviar los usuarios encontrados junto con el quórum total
         res.json({
             usuarios: usuariosConNombreCompleto,
             quorumsTotales,
@@ -880,18 +938,32 @@ exports.getUsersAndVotesByExcel = async (req, res) => {
 
 exports.getAllUsersOperaddor = async (req, res) => {
     try {
-        // Obtener los usuarios con los campos requeridos
-        const Users = await ModelUser.findAll({
+        // Obtener el id_card desde los parámetros de la solicitud
+        const idCard = req.params.id_card;
+
+        // Verificar que se recibió el id_card
+        if (!idCard) {
+            return res.status(400).json({
+                message: "El ID de la tarjeta (id_card) es obligatorio.",
+            });
+        }
+
+        // Obtener los usuarios que coincidan con el id_card y tengan esRepresentado = "No"
+        const users = await ModelUser.findAll({
             attributes: [
                 [Sequelize.fn('CONCAT', Sequelize.col('Nombre'), ' ', Sequelize.col('Apellido')), 'Nombre'],
                 'Apto',
                 'quorum',
                 'id',
-                
-            ]
+            ],
+            where: {
+                id_card: idCard, // Filtrar por id_card
+                esRepresentado: "No" // Filtrar por esRepresentado = "No"
+            }
         });
 
-        res.json(Users);
+        // Enviar la respuesta con los usuarios encontrados
+        res.json(users);
     } catch (error) {
         console.error("Hubo un error al traer los usuarios:", error.message);
         res.status(500).json({
@@ -902,10 +974,8 @@ exports.getAllUsersOperaddor = async (req, res) => {
 };
 
 
-
-
 exports.updateUserQuorumAndAsistencia = async (req, res) => {
-    const { idcard, cedula, quorumAAgregar, PoderesDelegados, Usuarios,Representante } = req.body;
+    const { idcard, cedula, quorumAAgregar, PoderesDelegados, Usuarios, Representante } = req.body;
 
     try {
         // Validar quorumAAgregar
@@ -922,7 +992,7 @@ exports.updateUserQuorumAndAsistencia = async (req, res) => {
         if (!Array.isArray(Usuarios)) {
             return res.status(400).json({ message: "El parámetro 'Usuarios' debe ser un array de objetos." });
         }
- 
+
         // Actualizar quorum para el usuario especificado
         const user = await ModelUser.findOne({ where: { Cedula: cedula, id_card: idcard } });
 
@@ -935,15 +1005,17 @@ exports.updateUserQuorumAndAsistencia = async (req, res) => {
 
         user.quorum = nuevoQuorum;
         user.PoderesDelegados = PoderesDelegados;
+        user.Apoderados = Usuarios; // Guardar el JSON en el campo Apoderados
         await user.save();
 
         // Actualizar Asistencia para los usuarios en el array
         const cédulasAActualizar = Usuarios.map(usuario => usuario.id);
 
         const [rowsAffected] = await ModelUser.update(
-            { Asistencia: "Presente" ,
-                esRepresentado:"P" ,
-                Representante:Representante 
+            { 
+                Asistencia: "Presente",
+                esRepresentado: "P",
+                Representante: Representante 
             },
             {
                 where: {
@@ -955,20 +1027,21 @@ exports.updateUserQuorumAndAsistencia = async (req, res) => {
 
         // Respuesta con detalles de las operaciones
         res.status(200).json({
-            message: "El quorum, PoderesDelegados y Asistencia se actualizaron correctamente.",
+            message: "El quorum, PoderesDelegados, Asistencia y Apoderados se actualizaron correctamente.",
             quorumActualizado: {
                 Cedula: user.Cedula,
                 Nombre: user.Nombre,
                 Apellido: user.Apellido,
                 NuevoQuorum: user.quorum,
                 PoderesDelegados: user.PoderesDelegados,
+                Apoderados: user.Apoderados,
             },
             asistenciaActualizada: rowsAffected, // Número de filas afectadas por la actualización de Asistencia
         });
     } catch (error) {
-        console.error("Error al actualizar el quorum y la asistencia:", error);
+        console.error("Error al actualizar el quorum, asistencia y apoderados:", error);
         res.status(500).json({
-            message: "Hubo un error al intentar actualizar el quorum, los poderes delegados y la asistencia.",
+            message: "Hubo un error al intentar actualizar el quorum, los poderes delegados, la asistencia y los apoderados.",
             errorDetails: error.message,
         });
     }

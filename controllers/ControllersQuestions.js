@@ -99,6 +99,29 @@ exports.getAllQuestions = async (req, res) => {
 
 
 
+exports.DeleteQuestion = async (req, res) => {
+    try {
+        console.log("Intentando eliminar pregunta con ID:", req.params.id);
+        
+        const deletedRows = await QuestionModel.destroy({
+            where: { id: req.params.id }
+        });
+
+        if (deletedRows === 0) {
+            console.log("Pregunta no encontrada en la base de datos.");
+            return res.status(404).json({ message: "Pregunta no encontrada" });
+        }
+
+        console.log("Pregunta eliminada correctamente.");
+        res.status(200).json({ message: "Pregunta eliminada correctamente" });
+    } catch (error) {
+        console.error("Error en la eliminación:", error.message);
+        res.status(500).json({ message: error.message + ", error al eliminar la pregunta" });
+    }
+};
+
+
+
 exports.getCronometro = async (req, res) => {
     try {
         const { id } = req.params;
