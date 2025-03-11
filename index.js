@@ -40,7 +40,7 @@ const io = new SocketServer(server, {
     perMessageDeflate: true,
     transports: ['websocket']
 }); 
-
+ 
 
 app.use(cookieParser()); 
 // Middleware para manejo de solicitudes
@@ -51,8 +51,8 @@ app.use(cors({
     credentials: true // Si tu aplicación necesita cookies o autenticación basada en sesiones
 }));
 app.use(express.json()); 
-   
-
+    
+ 
 app.get('/download-template', (req, res) => {
     const filePath = path.join(__dirname, 'upload', 'Plantilla.xlsx');
 
@@ -326,6 +326,7 @@ io.on('connection', (socket) => {
                     } else {
                         // Enviar evento con el tiempo restante
                         socket.emit('cronometro', { tiempoRestante, terminado: false });
+                        
                         console.log('Tiempo restante:', tiempoRestante);
                     }
                 } catch (error) {
@@ -599,7 +600,7 @@ app.get('/DataAutenticathed', (req, res) => {
       try {
           // Obtener el token de las cookies
           const token = req.cookies.Token;
-          console.log('Token recibidodddfkjshdflkjahsdlkfjhalskdjflasdjflka:', token);  // Log para verificar que el token está siendo enviado
+          console.log('Token recibido:', token);  // Log para verificar que el token está siendo enviado
   
           // Verificar si el token existe
           if (!token) {
@@ -773,3 +774,4 @@ const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
     console.log(`Servidor andando en el http://localhost:${PORT}`);
 });
+  

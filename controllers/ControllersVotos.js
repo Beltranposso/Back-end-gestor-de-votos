@@ -344,6 +344,8 @@ exports.obtenerResultadosPorCardxCoeficiente = async (req, res) => {
     }
 };
 
+
+
 exports.getOpcionesConQuorumByPregunta = async (req, res) => {
     try {
         const { id } = req.params; // Obtener el ID de la pregunta desde los parámetros de la ruta

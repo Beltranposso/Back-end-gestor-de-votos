@@ -174,10 +174,10 @@ exports.createUser = async (req, res) => {
         }
 
         // Verificar si la cédula ya está registrada
-        const existingUser = await Usermodel.findOne({ where: { Cedula } });
+        const existingUser = await Usermodel.findOne({ where: { Cedula, id_card } });
         if (existingUser) {
             return res.status(250).json({
-                message: "La cédula ya está registrada. Por favor, use una diferente.",
+                message: "La cédula ya está registrada en esta asamblea. Por favor, use una diferente.",
             });
         }
 

@@ -348,6 +348,9 @@ exports.verifyUserByCedula = async (req, res) => {
         const { Cedula } = req.body;
         const idCard = req.params.id_card;
 
+        console.log("Cedula:", Cedula);
+        console.log("idCard:", idCard);
+
         if (!Cedula) {
             return res.status(400).json({ message: "Cédula no proporcionada.", success: false });
         }
@@ -356,71 +359,43 @@ exports.verifyUserByCedula = async (req, res) => {
             return res.status(400).json({ message: "ID de la tarjeta (id_card) no proporcionado.", success: false });
         }
 
-        // Verificar si el token existe en Redis
-        const token = req.cookies.Token;
-        if (token) {
-            const cachedData = await client.get(`token:${token}`);
-            if (!cachedData) {
-                // Si el token no existe en Redis, elimina la cookie
-                res.clearCookie('Token', {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    path: '/'
-                });
-                return res.status(401).json({ message: "Token no válido o expirado.", success: false });
-            }
-        }
-
-        // 🔹 Verificar si los datos ya están en Redis
-        const cachedData = await client.get(`userData:${Cedula}:${idCard}`);
-        if (cachedData) {
-            return res.json({
-                message: "Datos obtenidos desde caché.",
-                success: true,
-                data: JSON.parse(cachedData)
-            });
-        }
-
-        // 🔹 Consultar la base de datos solo si los datos no están en caché
+        // 🔹 Consultar la base de datos
         const user = await ModelUser.findOne({
             where: { Cedula, id_card: idCard },
-            attributes: ['Nombre', 'Apellido', 'quorum', 'RegisterQuorum', 'PoderesDelegados', 'esRepresentado'] // Agregar 'esRepresentado'
+            attributes: ['Nombre', 'Apellido', 'quorum', 'RegisterQuorum', 'PoderesDelegados', 'esRepresentado']
         });
 
         if (!user) {
             return res.json({ message: "No estás registrado en esta Asamblea.", success: false });
         }
 
-        // 🔹 Extraer los datos del usuario
+        // 🔹 Extraer datos del usuario
         const { Nombre, Apellido, quorum, RegisterQuorum, PoderesDelegados, esRepresentado } = user;
         const userData = { Cedula, idCard, NombreCompleto: `${Nombre} ${Apellido}`, quorum, RegisterQuorum, PoderesDelegados };
 
         // 🔹 Verificar si el usuario es representado
         if (esRepresentado === "P") {
             return res.json({
-                message: "El usuario es representado y no requiere un token."
+                message: "El usuario es representado y no requiere un token.",
+                success: true
             });
         }
 
-        // 🔹 Generar el token solo si el usuario no es representado
+        // 🔹 Generar el token
         const newToken = jwt.sign(userData, process.env.SECRET_KEY, { expiresIn: '1d' });
         console.log('Token generado:', newToken);
 
-        // 🔹 Guardar los datos en Redis (expiración 1 día)
-        await client.setEx(`token:${newToken}`, 86400, JSON.stringify(userData));
-        console.log('Datos guardados en Redis:', userData); 
-
         // 🔹 Establecer la cookie con el token
-        res.cookie('Token', newToken, {
+        res.cookie('Token', newToken, {  
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // Cambia a true en producción
+            secure: process.env.NODE_ENV === 'production', // En producción, usa HTTPS
             maxAge: 24 * 60 * 60 * 1000, // 1 día en milisegundos
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/'
         });
 
         return res.json({
-            message: "Usuario registrado. Token generado y datos almacenados en caché.",
+            message: "Usuario registrado. Token generado.",
             success: true,
             token: newToken
         });
@@ -430,6 +405,8 @@ exports.verifyUserByCedula = async (req, res) => {
         res.status(500).json({ message: "Error interno del servidor.", error: error.message });
     }
 };
+
+
 
 exports.decodeToken = async (req, res) => { 
     try {
@@ -441,22 +418,11 @@ exports.decodeToken = async (req, res) => {
                 success: false
             });
         }
-console.log("token deodificado:",token)
-        // 🔹 Verificar si el token está en Redis
-        const cachedUserData = await client.get(`token:${token}`);
-        if (cachedUserData) {
-            return res.json({
-                message: "Token encontrado en caché.",
-                success: true,
-                userData: JSON.parse(cachedUserData) // Convertir a objeto
-            });
-        }
 
-        // 🔹 Si no está en Redis, decodificarlo
+        console.log("Token decodificado:", token);
+
+        // 🔹 Decodificar el token
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
-
-        // 🔹 Guardar los datos decodificados en Redis con expiración (1 día)
-        await client.setEx(`token:${token}`, 86400, JSON.stringify(decoded));
 
         return res.json({
             message: "Token decodificado exitosamente.",
@@ -468,8 +434,6 @@ console.log("token deodificado:",token)
         console.error("Error al decodificar el token:", error.message);
 
         if (error.name === 'TokenExpiredError') {
-            // 🔹 Si el token expiró, eliminarlo de Redis y responder con error
-            await client.del(`token:${req.cookies.Token}`);
             return res.status(401).json({
                 message: "El token ha expirado.",
                 success: false
@@ -485,6 +449,12 @@ console.log("token deodificado:",token)
 
 
 
+
+
+
+
+
+
 exports.checkVotingStatusFromToken = async (req, res) => {
     try {
         // Obtener el token de las cookies
@@ -496,14 +466,14 @@ exports.checkVotingStatusFromToken = async (req, res) => {
                 message: "No se encontró el token en las cookies.",
                 success: false
             });
-        }
- 
+        } 
+  
         // Decodificar el token
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
 
         // Obtener la cédula y el id_card desde el token decodificado
         const { Cedula, id_card } = decoded;
-
+        
         // Verificar si la cédula y el id_card están presentes
         if (!Cedula || !id_card) {
             return res.status(400).json({
@@ -772,8 +742,12 @@ exports.getUsuariosPresentesByPDF = async (req, res) => {
             Representante: usuario.Representante,
         }));
 
+        // Calcular quorumsTotales excluyendo a los usuarios representados (esRepresentado === "P")
         const quorumsTotales = usuariosPresentes.reduce((total, usuario) => {
-            return total + (parseFloat(usuario.quorum) || 0);
+            if (usuario.esRepresentado !== "P") { // Solo sumar si no está representado
+                return total + (parseFloat(usuario.quorum) || 0);
+            }
+            return total; // Si está representado, no sumar
         }, 0);
 
         res.json({
@@ -787,7 +761,6 @@ exports.getUsuariosPresentesByPDF = async (req, res) => {
         });
     }
 };
-
 
 
 

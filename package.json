@@ -2,9 +2,14 @@
   "name": "gestordevotos-data",
   "version": "1.0.0",
   "main": "index.js",
+
   "scripts": {
-    "dev": "nodemon ./index.js"
+    "dev": "nodemon ./index.js",
+    "start": "node ./index.js",
+    "stop": "pkill -f index.js"
+  
   },
+
   "keywords": [],
   "author": "",
   "license": "ISC",
